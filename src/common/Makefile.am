@@ -239,7 +239,8 @@ noinst_HEADERS += \
 	common/SubProcess.h \
 	common/valgrind.h \
 	common/TracepointProvider.h \
-	common/ceph_time.h
+	common/ceph_time.h \
+	common/ceph_timer.h
 
 if ENABLE_XIO
 noinst_HEADERS += \
