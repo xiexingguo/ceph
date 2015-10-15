@@ -136,7 +136,7 @@ add_executable(smalliobenchfs
   ${smalliobenchfs_srcs}
   $<TARGET_OBJECTS:heap_profiler_objs>
   )
-target_link_libraries(smalliobenchfs librados boost_program_options os global
+target_link_libraries(smalliobenchfs librados boost_program_options global
   ${BLKID_LIBRARIES} ${CMAKE_DL_LIBS} ${TCMALLOC_LIBS})
 
 # smalliobenchdumb
@@ -150,7 +150,7 @@ add_executable(smalliobenchdumb
   ${smalliobenchdumb_srcs}
   $<TARGET_OBJECTS:heap_profiler_objs>
   )
-target_link_libraries(smalliobenchdumb librados boost_program_options os global
+target_link_libraries(smalliobenchdumb librados boost_program_options global
   ${BLKID_LIBRARIES} ${CMAKE_DL_LIBS} ${TCMALLOC_LIBS})
 
 # smalliobenchrbd
@@ -173,7 +173,6 @@ if (${WITH_RBD})
     os
     global
     boost_program_options
-    blkid
     udev
     ${BLKID_LIBRARIES}
     ${CMAKE_DL_LIBS}
@@ -190,7 +189,7 @@ add_executable(tpbench
   ${tpbench_srcs}
   $<TARGET_OBJECTS:heap_profiler_objs>
   )
-target_link_libraries(tpbench librados boost_program_options os global
+target_link_libraries(tpbench librados boost_program_options global
   ${BLKID_LIBRARIES} ${CMAKE_DL_LIBS} ${TCMALLOC_LIBS})
 
 # omapbench
@@ -204,7 +203,6 @@ add_executable(omapbench
 target_link_libraries(omapbench
   librados
   boost_program_options
-  os
   global
   ${BLKID_LIBRARIES}
   ${CMAKE_DL_LIBS}
@@ -456,7 +454,7 @@ add_executable(unittest_encoding EXCLUDE_FROM_ALL
   )
 add_test(unittest_encoding unittest_encoding)
 add_dependencies(check unittest_encoding)
-#target_link_libraries(unittest_encoding librados global boost_filesystem
+#target_link_libraries(unittest_encoding librados global ${Boost_FILESYSTEM_LIBRARY}
 target_link_libraries(unittest_encoding cephfs librados pthread rt m ${BLKID_LIBRARIES} ${CMAKE_DL_LIBS} ${TCMALLOC_LIBS} ${UNITTEST_LIBS})
 set_target_properties(unittest_encoding
   PROPERTIES COMPILE_FLAGS ${UNITTEST_CXX_FLAGS})
@@ -1536,7 +1534,7 @@ if(${WITH_RADOSGW})
     cls_rgw_client
     cls_user_client
     cls_lock_client
-    boost_regex
+    ${Boost_REGEX_LIBRARY}
     ${BLKID_LIBRARIES}
     ${CMAKE_DL_LIBS} ${TCMALLOC_LIBS} ${UNITTEST_LIBS} ${CRYPTO_LIBS})
   set_target_properties(test_cls_rgw_meta PROPERTIES COMPILE_FLAGS
@@ -1563,7 +1561,7 @@ if(${WITH_RADOSGW})
     cls_rgw_client
     cls_user_client
     cls_lock_client
-    boost_regex
+    ${Boost_REGEX_LIBRARY}
     ${BLKID_LIBRARIES}
     ${CMAKE_DL_LIBS}
     ${TCMALLOC_LIBS}
@@ -2238,7 +2236,7 @@ add_executable(simple_server
   $<TARGET_OBJECTS:heap_profiler_objs>
   )
 target_link_libraries(simple_server
-  os global common boost_regex
+  os global common ${Boost_REGEX_LIBRARY}
   ${EXTRALIBS}
   ${TCMALLOC_LIBS}
   ${CMAKE_DL_LIBS}
@@ -2250,7 +2248,7 @@ add_executable(simple_client
   $<TARGET_OBJECTS:heap_profiler_objs>
   )
 target_link_libraries(simple_client
-  os global common boost_regex
+  os global common ${Boost_REGEX_LIBRARY}
   ${EXTRALIBS}
   ${TCMALLOC_LIBS}
   ${CMAKE_DL_LIBS}
@@ -2263,7 +2261,7 @@ if(HAVE_XIO)
     $<TARGET_OBJECTS:heap_profiler_objs>
     )
   target_link_libraries(xio_server
-    os global common boost_regex
+    os global common ${Boost_REGEX_LIBRARY}
     ${Xio_LIBRARY} ibverbs rdmacm pthread rt
     ${EXTRALIBS}
     ${TCMALLOC_LIBS}
@@ -2276,7 +2274,7 @@ if(HAVE_XIO)
     $<TARGET_OBJECTS:heap_profiler_objs>
     )
   target_link_libraries(xio_client
-    os global common boost_regex
+    os global common ${Boost_REGEX_LIBRARY}
     ${Xio_LIBRARY} ibverbs rdmacm pthread rt
     ${EXTRALIBS}
     ${TCMALLOC_LIBS}
