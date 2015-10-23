@@ -12390,19 +12390,19 @@ void ReplicatedPG::_scrub(
 
       dout(20) << __func__ << " " << mode << " matched clone " << soid << dendl;
 
-      if (snapset.get().clone_size.count(soid.snap) == 0) {
+      if (snapset->clone_size.count(soid.snap) == 0) {
 	osd->clog->error() << mode << " " << info.pgid << " " << soid
 			   << " is missing in clone_size";
 	++scrubber.shallow_errors;
       } else {
-        if (oi && oi.get().size != snapset.get().clone_size[soid.snap]) {
+        if (oi && oi->size != snapset->clone_size[soid.snap]) {
 	  osd->clog->error() << mode << " " << info.pgid << " " << soid
-			     << " size " << oi.get().size << " != clone_size "
-			     << snapset.get().clone_size[*curclone];
+			     << " size " << oi->size << " != clone_size "
+			     << snapset->clone_size[*curclone];
 	  ++scrubber.shallow_errors;
         }
 
-        if (snapset.get().clone_overlap.count(soid.snap) == 0) {
+        if (snapset->clone_overlap.count(soid.snap) == 0) {
 	  osd->clog->error() << mode << " " << info.pgid << " " << soid
 			     << " is missing in clone_overlap";
 	  ++scrubber.shallow_errors;
@@ -12411,9 +12411,9 @@ void ReplicatedPG::_scrub(
 	  // can't happen because we know we have a clone_size and
 	  // a clone_overlap.  Now we check that the interval_set won't
 	  // cause the last assert.
-	  uint64_t size = snapset.get().clone_size.find(soid.snap)->second;
+	  uint64_t size = snapset->clone_size.find(soid.snap)->second;
 	  const interval_set<uint64_t> &overlap =
-	        snapset.get().clone_overlap.find(soid.snap)->second;
+	        snapset->clone_overlap.find(soid.snap)->second;
 	  bool bad_interval_set = false;
 	  for (interval_set<uint64_t>::const_iterator i = overlap.begin();
 	       i != overlap.end(); ++i) {
@@ -12429,7 +12429,7 @@ void ReplicatedPG::_scrub(
 			       << " bad interval_set in clone_overlap";
 	    ++scrubber.shallow_errors;
 	  } else {
-            stat.num_bytes += snapset.get().get_clone_bytes(soid.snap);
+            stat.num_bytes += snapset->get_clone_bytes(soid.snap);
 	  }
         }
       }
