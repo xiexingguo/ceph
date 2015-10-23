@@ -12216,11 +12216,6 @@ void ReplicatedPG::_scrub(
     object_stat_sum_t stat;
     boost::optional<object_info_t> oi;
 
-    // XXX: Can this really happen?
-    // XXX: Should we do this later to count object and check OI_ATTR?
-    if (soid.snap == 0)
-      continue;
-
     if (!soid.is_snapdir())
       stat.num_objects++;
 
