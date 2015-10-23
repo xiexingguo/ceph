@@ -12359,7 +12359,7 @@ void ReplicatedPG::_scrub(
 
 	if (!snapset->clones.empty()) {
 	  dout(20) << "  snapset " << snapset.get() << dendl;
-	  if (snapset.get().seq == 0) {
+	  if (snapset->seq == 0) {
 	    osd->clog->error() << mode << " " << info.pgid << " " << soid
 			       << " snaps.seq not set";
 	    ++scrubber.shallow_errors;
