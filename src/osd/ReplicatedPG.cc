@@ -12248,12 +12248,12 @@ void ReplicatedPG::_scrub(
     }
 
     if (oi) {
-      if (pgbackend->be_get_ondisk_size(oi.get().size) != p->second.size) {
+      if (pgbackend->be_get_ondisk_size(oi->size) != p->second.size) {
 	osd->clog->error() << mode << " " << info.pgid << " " << soid
 			   << " on disk size (" << p->second.size
 			   << ") does not match object info size ("
-			   << oi.get().size << ") adjusted for ondisk to ("
-			   << pgbackend->be_get_ondisk_size(oi.get().size)
+			   << oi->size << ") adjusted for ondisk to ("
+			   << pgbackend->be_get_ondisk_size(oi->size)
 			   << ")";
 	++scrubber.shallow_errors;
       }
@@ -12262,17 +12262,17 @@ void ReplicatedPG::_scrub(
 
       // A clone num_bytes will be added later when we have snapset
       if (!soid.is_snap()) {
-	stat.num_bytes += oi.get().size;
+	stat.num_bytes += oi->size;
       }
       if (soid.nspace == cct->_conf->osd_hit_set_namespace)
-	stat.num_bytes_hit_set_archive += oi.get().size;
+	stat.num_bytes_hit_set_archive += oi->size;
 
       if (!soid.is_snapdir()) {
-	if (oi.get().is_dirty())
+	if (oi->is_dirty())
 	  ++stat.num_objects_dirty;
-	if (oi.get().is_whiteout())
+	if (oi->is_whiteout())
 	  ++stat.num_whiteouts;
-	if (oi.get().is_omap())
+	if (oi->is_omap())
 	  ++stat.num_objects_omap;
 	if (oi->is_cache_pinned())
 	  ++stat.num_objects_pinned;
@@ -12283,7 +12283,7 @@ void ReplicatedPG::_scrub(
     if (doing_clones(snapset, curclone)) {
       snapid_t target;
       // Expecting an object with snap for current head
-      if (soid.has_snapset() || soid.get_head() != head.get().get_head()) {
+      if (soid.has_snapset() || soid.get_head() != head->get_head()) {
 
 	dout(10) << __func__ << " " << mode << " " << info.pgid << " new object "
 		 << soid << " while processing " << head.get() << dendl;
@@ -12355,9 +12355,9 @@ void ReplicatedPG::_scrub(
 
       if (snapset) {
 	// what will be next?
-	curclone = snapset.get().clones.rbegin();
+	curclone = snapset->clones.rbegin();
 
-	if (!snapset.get().clones.empty()) {
+	if (!snapset->clones.empty()) {
 	  dout(20) << "  snapset " << snapset.get() << dendl;
 	  if (snapset.get().seq == 0) {
 	    osd->clog->error() << mode << " " << info.pgid << " " << soid
@@ -12366,12 +12366,12 @@ void ReplicatedPG::_scrub(
           }
 	}
 
-	if (soid.is_head() && !snapset.get().head_exists) {
+	if (soid.is_head() && !snapset->head_exists) {
 	  osd->clog->error() << mode << " " << info.pgid << " " << soid
 			  << " snapset.head_exists=false, but head exists";
 	  ++scrubber.shallow_errors;
 	}
-	if (soid.is_snapdir() && snapset.get().head_exists) {
+	if (soid.is_snapdir() && snapset->head_exists) {
 	  osd->clog->error() << mode << " " << info.pgid << " " << soid
 			  << " snapset.head_exists=true, but snapdir exists";
 	  ++scrubber.shallow_errors;
