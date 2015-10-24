@@ -12137,31 +12137,31 @@ void ReplicatedPG::log_missing(const boost::optional<hobject_t> &head,
 
 void ReplicatedPG::process_clones_to(const boost::optional<hobject_t> &head,
   const boost::optional<SnapSet> &snapset,
-  vector<snapid_t>::reverse_iterator &curclone,
   LogChannelRef clog,
   const spg_t &pgid,
   const char *mode,
   bool &missing,
   bool allow_incomplete_clones,
-  snapid_t target)
+  snapid_t target,
+  vector<snapid_t>::reverse_iterator *curclone)
 {
   assert(head);
   assert(snapset);
 
-  // NOTE: clones are in descending order, thus *curclone > target test here
+  // NOTE: clones are in descending order, thus **curclone > target test here
   hobject_t next_clone(head.get());
-  while(doing_clones(snapset, curclone) && *curclone > target) {
+  while(doing_clones(snapset, *curclone) && **curclone > target) {
     missing = true;
     // it is okay to be missing one or more clones in a cache tier.
     // skip higher-numbered clones in the list.
     if (!allow_incomplete_clones) {
-      next_clone.snap = *curclone;
+      next_clone.snap = **curclone;
       clog->error() << mode << " " << pgid << " " << head.get()
 			 << " expected clone " << next_clone;
       ++scrubber.shallow_errors;
     }
     // Clones are descending
-    ++curclone;
+    ++(*curclone);
   }
 }
 
@@ -12296,8 +12296,8 @@ void ReplicatedPG::_scrub(
 
       // Log any clones we were expecting to be there up to target
       // This will set missing, but will be a no-op if snap.soid == *curclone.
-      process_clones_to(head, snapset, curclone, osd->clog, info.pgid, mode,
-		        missing, pool.info.allow_incomplete_clones(), target);
+      process_clones_to(head, snapset, osd->clog, info.pgid, mode,
+		        missing, pool.info.allow_incomplete_clones(), target, &curclone);
     }
     bool expected;
     // Check doing_clones() again in case we ran process_clones_to()
@@ -12440,8 +12440,8 @@ void ReplicatedPG::_scrub(
     dout(10) << __func__ << " " << mode << " " << info.pgid
 	     << " No more objects while processing " << head.get() << dendl;
 
-    process_clones_to(head, snapset, curclone, osd->clog, info.pgid, mode,
-		      missing, pool.info.allow_incomplete_clones(), all_clones);
+    process_clones_to(head, snapset, osd->clog, info.pgid, mode,
+		      missing, pool.info.allow_incomplete_clones(), all_clones, &curclone);
 
   }
   // There could be missing found by the test above or even

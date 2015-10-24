@@ -1501,13 +1501,13 @@ private:
 			bool allow_incomplete_clones);
   void process_clones_to(const boost::optional<hobject_t> &head,
     const boost::optional<SnapSet> &snapset,
-    vector<snapid_t>::reverse_iterator &curclone,
     LogChannelRef clog,
     const spg_t &pgid,
     const char *mode,
     bool &missing,
     bool allow_incomplete_clones,
-    snapid_t target);
+    snapid_t target,
+    vector<snapid_t>::reverse_iterator *curclone);
 
 public:
   coll_t get_coll() {
