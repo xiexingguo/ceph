@@ -12292,7 +12292,7 @@ void ReplicatedPG::_scrub(
 
         target = all_clones;
       } else {
-        assert(soid.is_snap() && soid.snap != 0);
+        assert(soid.is_snap());
         target = soid.snap;
       }
 
@@ -12387,7 +12387,7 @@ void ReplicatedPG::_scrub(
 	}
       }
     } else {
-      assert(soid.is_snap() && soid.snap != 0);
+      assert(soid.is_snap());
       assert(head);
       assert(snapset);
       assert(soid.snap == *curclone);
