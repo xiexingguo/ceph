@@ -1443,10 +1443,11 @@ int ObjectStoreTool::do_import(ObjectStore *store, OSDSuperblock& sb,
   return 0;
 }
 
-int do_list(ObjectStore *store, string pgidstr, string object, Formatter *formatter, bool debug, bool human_readable)
+int do_list(ObjectStore *store, string pgidstr, string object,
+	    Formatter *formatter, bool debug, bool human_readable, bool head)
 {
   int r;
-  lookup_ghobject lookup(object);
+  lookup_ghobject lookup(object, head);
   if (pgidstr.length() > 0) {
     r = action_on_all_objects_in_pg(store, pgidstr, lookup, debug);
   } else {
@@ -2312,10 +2313,7 @@ int main(int argc, char **argv)
   if (vm.count("skip-mount-omap"))
     flags |= SKIP_MOUNT_OMAP;
 
-  if (!vm.count("head"))
-    head = false;
-  else
-    head = true;
+  head = (vm.count("head") > 0);
 
   vector<const char *> ceph_options;
   env_to_vec(ceph_options);
@@ -2845,7 +2843,7 @@ int main(int argc, char **argv)
   }
 
   if (op == "list") {
-    ret = do_list(fs, pgidstr, object, formatter, debug, human_readable);
+    ret = do_list(fs, pgidstr, object, formatter, debug, human_readable, head);
     if (ret < 0) {
       cerr << "do_list failed: " << cpp_strerror(ret) << std::endl;
     }
