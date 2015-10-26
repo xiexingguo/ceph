@@ -32,18 +32,6 @@ do
     ./rados -p test put obj${i} $TESTDATA
 done
 
-# obj1 create snap 1
-# manually obj1 remove head
-# obj5  snap  6 4 2 1
-# manually obj5 create snap 7
-# manually obj5 remove 2
-# manually obj5 remove 1
-# obj3 snaps 3 1
-# obj2 snap 4
-# remove obj2
-# manually remove snap 4
-# obj4 remove obj4
-
 SNAP=1
 ./rados -p test mksnap snap${SNAP}
 dd if=/dev/urandom of=$TESTDATA bs=256 count=${SNAP}
