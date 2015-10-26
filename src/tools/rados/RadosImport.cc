@@ -317,6 +317,7 @@ int RadosImport::get_object_rados(librados::IoCtx &ioctx, bufferlist &bl, bool n
         break;
       for (std::map<string,bufferlist>::iterator i = as.data.begin();
           i != as.data.end(); ++i) {
+	// The user xattrs that we want all begin with "_" with length > 1.
         // Drop key "_" and all attributes that do not start with '_'
         if (i->first == "_" || i->first[0] != '_')
           continue;
