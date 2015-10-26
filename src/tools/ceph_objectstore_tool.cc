@@ -1958,7 +1958,6 @@ int set_size(ObjectStore *store, coll_t coll, ghobject_t &ghobj, uint64_t setsiz
   }
   ghobject_t head(ghobj);
   SnapSet ss;
-  bufferlist snapattr;
   bool found_head = true;
   map<snapid_t, uint64_t>::iterator csi;
   bool is_snap = ghobj.hobj.is_snap();
@@ -2007,6 +2006,7 @@ int set_size(ObjectStore *store, coll_t coll, ghobject_t &ghobj, uint64_t setsiz
     t.setattr(coll, ghobj, OI_ATTR, attr);
     t.truncate(coll, ghobj, setsize);
     if (is_snap) {
+      bufferlist snapattr;
       snapattr.clear();
       ::encode(ss, snapattr);
       t.setattr(coll, head, SS_ATTR, snapattr);
