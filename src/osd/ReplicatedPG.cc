@@ -3175,11 +3175,10 @@ ReplicatedPG::RepGather *ReplicatedPG::trim_object(const hobject_t &coid)
 
   object_info_t &coi = obc->obs.oi;
   set<snapid_t> old_snaps(coi.snaps.begin(), coi.snaps.end());
-  if (old_snaps.size() == 0) {
+  if (old_snaps.empty()) {
     osd->clog->error() << __func__ << " No object info snaps for " << coid << "\n";
     return NULL;
   }
-  assert(old_snaps.size());
 
   SnapSet& snapset = obc->ssc->snapset;
 
@@ -3189,7 +3188,6 @@ ReplicatedPG::RepGather *ReplicatedPG::trim_object(const hobject_t &coid)
     osd->clog->error() << __func__ << " No snapset.seq for " << coid << "\n";
     return NULL;
   }
-  assert(snapset.seq);
 
   RepGather *repop = simple_repop_create(obc);
   OpContext *ctx = repop->ctx;
@@ -3222,7 +3220,7 @@ ReplicatedPG::RepGather *ReplicatedPG::trim_object(const hobject_t &coid)
       osd->clog->error() << __func__ << " Snap " << coid.snap << " not in clones" << "\n";
       return NULL;
     }
-    assert(p != snapset.clones.end());
+
     ctx->delta_stats.num_bytes -= snapset.get_clone_bytes(last);
 
     if (p != snapset.clones.begin()) {
