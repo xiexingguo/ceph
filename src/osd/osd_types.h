@@ -3144,8 +3144,8 @@ struct object_info_t {
     decode(bl);
   }
   object_info_t operator=(bufferlist& bl) {
-    object_info_t oi(bl);
-    return oi;
+    decode(bl);
+    return *this;
   }
 };
 WRITE_CLASS_ENCODER(object_info_t)
