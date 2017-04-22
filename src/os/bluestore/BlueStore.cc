@@ -8957,6 +8957,11 @@ void BlueStore::_txc_release_alloc(TransContext *txc)
   interval_set<uint64_t> bulk_release_extents;
   // it's expected we're called with lazy_release_lock already taken!
   if (!cct->_conf->bluestore_debug_no_reuse_blocks) {
+    for (interval_set<uint64_t>::iterator p = txc->released.begin();
+	 p != txc->released.end();
+	 ++p) {
+      bdev->discard(p.get_start(), p.get_len());
+    }
     dout(10) << __func__ << " " << txc << " " << std::hex
              << txc->released << std::dec << dendl;
     // interval_set seems to be too costly for inserting things in
