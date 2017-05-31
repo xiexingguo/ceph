@@ -269,10 +269,14 @@ private:
   vector<uint64_t> alloc_size;                ///< alloc size for each device
   vector<interval_set<uint64_t>> pending_release; ///< extents to release
 
+
   BlueFSDeviceExpander* slow_dev_expander = nullptr;
 
   class SocketHook;
   SocketHook* asok_hook = nullptr;
+
+  BlockDevice::aio_callback_t discard_cb[3]; //discard callbacks for each dev
+
 
   void _init_logger();
   void _shutdown_logger();
@@ -431,6 +435,9 @@ public:
   /// reclaim block space
   int reclaim_blocks(unsigned bdev, uint64_t want,
 		     PExtentVector *extents);
+
+  // handler for discard event
+  void handle_discard(unsigned dev, interval_set<uint64_t>& to_release);
 
   void flush(FileWriter *h) {
     std::lock_guard<std::mutex> l(lock);

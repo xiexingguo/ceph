@@ -3767,6 +3767,20 @@ static void aio_cb(void *priv, void *priv2)
   c->aio_finish(store);
 }
 
+static void discard_cb(void *priv, void *priv2)
+{
+  BlueStore *store = static_cast<BlueStore*>(priv);
+  interval_set<uint64_t> *tmp = static_cast<interval_set<uint64_t>*>(priv2);
+  store->handle_discard(*tmp);
+}
+
+void BlueStore::handle_discard(interval_set<uint64_t>& to_release)
+{
+  dout(10) << __func__ << dendl;
+  assert(alloc);
+  alloc->release(to_release);
+}
+
 BlueStore::BlueStore(CephContext *cct, const string& path)
   : ObjectStore(cct, path),
     throttle_bytes(cct, "bluestore_throttle_bytes",
@@ -4466,7 +4480,7 @@ int BlueStore::_open_bdev(bool create)
 {
   assert(bdev == NULL);
   string p = path + "/block";
-  bdev = BlockDevice::create(cct, p, aio_cb, static_cast<void*>(this));
+  bdev = BlockDevice::create(cct, p, aio_cb, static_cast<void*>(this), discard_cb, static_cast<void*>(this));
   int r = bdev->open(p);
   if (r < 0)
     goto fail;
@@ -4649,6 +4663,9 @@ int BlueStore::_open_alloc()
 
 void BlueStore::_close_alloc()
 {
+  assert(bdev);
+  bdev->discard_drain();
+
   assert(alloc);
   alloc->shutdown();
   delete alloc;
@@ -8956,13 +8973,22 @@ void BlueStore::_txc_release_alloc(TransContext *txc)
 {
   interval_set<uint64_t> bulk_release_extents;
   // it's expected we're called with lazy_release_lock already taken!
+
   if (!cct->_conf->bluestore_debug_no_reuse_blocks) {
-    for (interval_set<uint64_t>::iterator p = txc->released.begin();
-	 p != txc->released.end();
-	 ++p) {
-      bdev->discard(p.get_start(), p.get_len());
+    int r = 0;
+    if (cct->_conf->bdev_enable_discard && cct->_conf->bdev_async_discard) {
+      r = bdev->queue_discard(txc->released);
+      if (r == 0) {
+	dout(10) << __func__ << "(queued) " << txc << " " << std::hex
+		 << txc->released << std::dec << dendl;
+	goto out;
+      }
+    } else if (cct->_conf->bdev_enable_discard) {
+      for (auto p = txc->released.begin(); p != txc->released.end(); ++p) {
+	  bdev->discard(p.get_start(), p.get_len());
+      }
     }
-    dout(10) << __func__ << " " << txc << " " << std::hex
+    dout(10) << __func__ << "(sync) " << txc << " " << std::hex
              << txc->released << std::dec << dendl;
     // interval_set seems to be too costly for inserting things in
     // bstore_kv_final. We could serialize in simpler format and perform
@@ -8970,6 +8996,7 @@ void BlueStore::_txc_release_alloc(TransContext *txc)
     bulk_release_extents.insert(txc->released);
   }
 
+out:
   alloc->release(bulk_release_extents);
   txc->allocated.clear();
   txc->released.clear();
