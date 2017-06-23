@@ -136,3 +136,16 @@ COMMAND("config set " \
 	"name=key,type=CephString name=value,type=CephString",
 	"Set a configuration option at runtime (not persistent)",
 	"mgr", "rw", "cli,rest")
+
+//mgr
+COMMAND("mgr report imgs_perf "				\
+	"name=name,type=CephString "			\
+	"name=id,type=CephString",			\
+	"report pool image perf data from clients",     \
+	"mgr", "r", "cli,rest")
+
+COMMAND("mgr dump imgs_perf "				\
+	"name=dumpcontents,type=CephString,n=N,req=false",
+	"dump image perf statistics",     		\
+	"mgr", "r", "cli,rest")
+
