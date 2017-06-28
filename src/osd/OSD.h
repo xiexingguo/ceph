@@ -41,6 +41,7 @@
 #include "Session.h"
 
 #include "osd/PGQueueable.h"
+#include "osd/dmcQueue.h"
 
 #include <atomic>
 #include <map>
@@ -1615,6 +1616,7 @@ private:
     weightedpriority,
     mclock_opclass,
     mclock_client,
+    dmc
   };
   friend std::ostream& operator<<(std::ostream& out, const OSD::io_queue& q);
 
@@ -1711,6 +1713,8 @@ private:
 	} else if (opqueue == io_queue::mclock_client) {
 	  pqueue = std::unique_ptr
 	    <ceph::mClockClientQueue>(new ceph::mClockClientQueue(cct));
+	} else if (opqueue == io_queue::dmc) {
+          pqueue = std::unique_ptr<ceph::dmcQueue>(new ceph::dmcQueue(cct));
 	}
       }
     }; // struct ShardData
@@ -2375,7 +2379,8 @@ private:
       static io_queue index_lookup[] = { io_queue::prioritized,
 					 io_queue::weightedpriority,
 					 io_queue::mclock_opclass,
-					 io_queue::mclock_client };
+					 io_queue::mclock_client,
+                                         io_queue::dmc };
       srand(time(NULL));
       unsigned which = rand() % (sizeof(index_lookup) / sizeof(index_lookup[0]));
       return index_lookup[which];
@@ -2385,6 +2390,8 @@ private:
       return io_queue::mclock_opclass;
     } else if (cct->_conf->osd_op_queue == "mclock_client") {
       return io_queue::mclock_client;
+    } else if (cct->_conf->osd_op_queue == "dmc") {
+      return io_queue::dmc;
     } else {
       // default / catch-all is 'wpq'
       return io_queue::weightedpriority;
