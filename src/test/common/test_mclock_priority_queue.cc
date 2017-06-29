@@ -45,6 +45,10 @@ struct Client {
   }
 };
 
+ostream& operator<<(ostream &out, const Client& c) {
+  out << "";
+  return out;
+}
 
 crimson::dmclock::ClientInfo client_info_func(const Client& c) {
   static const crimson::dmclock::ClientInfo

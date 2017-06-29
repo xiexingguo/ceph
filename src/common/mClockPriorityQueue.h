@@ -28,6 +28,8 @@
 // the following is done to unclobber _ASSERT_H so it returns to the
 // way ceph likes it
 #include "include/assert.h"
+#include "osd/osd_types.h"
+#include "osd/PGQueueable.h"
 
 
 namespace ceph {
@@ -392,6 +394,7 @@ namespace ceph {
 
       f->open_object_section("queue");
       f->dump_int("size", queue.request_count());
+      queue.dump(f);
       f->close_section();
     } // dump
   };

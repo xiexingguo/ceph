@@ -1109,6 +1109,7 @@ namespace librados
         ObjectWriteOperation *op, snap_t seq,
         std::vector<snap_t>& snaps,
         const blkin_trace_info *trace_info);
+
     int aio_operate(const std::string& oid, AioCompletion *c,
 		    ObjectReadOperation *op, bufferlist *pbl);
 
@@ -1237,6 +1238,9 @@ namespace librados
     void locator_set_key(const std::string& key);
     void set_namespace(const std::string& nspace);
 
+    void set_qos_quota(int res, int wgt, int lim, int bdw);
+    int  get_iops();
+
     int64_t get_id();
 
     // deprecated versions
@@ -1322,6 +1326,8 @@ namespace librados
       const std::map<std::string,std::string>& metadata); ///< static metadata about daemon
     int service_daemon_update_status(
       const std::map<std::string,std::string>& status);
+    int get_iops();
+    int update_qos(int rsv, int wgt, int lmt, int bdw);
 
     int pool_create(const char *name);
     int pool_create(const char *name, uint64_t auid);
