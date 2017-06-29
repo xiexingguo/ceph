@@ -419,6 +419,8 @@ OPTION(objecter_completion_locks_per_session, OPT_U64) // num of completion lock
 OPTION(objecter_inject_no_watch_ping, OPT_BOOL)   // suppress watch pings
 OPTION(objecter_retry_writes_after_first_reply, OPT_BOOL)   // ignore the first reply for each write, and resend the osd op instead
 OPTION(objecter_debug_inject_relock_delay, OPT_BOOL)
+OPTION(objecter_requests_tracker_history_size, OPT_U32)   // max size of histroy to track requests done rate
+OPTION(objecter_dmc_op_cost_from_rados, OPT_BOOL)
 
 // Max number of deletes at once in a single Filer::purge call
 OPTION(filer_max_purge_ops, OPT_U32)
@@ -881,6 +883,7 @@ OPTION(osd_loop_before_reset_tphandle, OPT_U32) // Max number of loop before we 
 OPTION(threadpool_default_timeout, OPT_INT)
 // default wait time for an empty queue before pinging the hb timeout
 OPTION(threadpool_empty_queue_max_wait, OPT_INT)
+OPTION(threadpool_dmc_queue_poll_delay, OPT_DOUBLE) // default wait time if pull no request from dmc_queue (seconds)
 
 OPTION(leveldb_log_to_ceph_log, OPT_BOOL)
 OPTION(leveldb_write_buffer_size, OPT_U64) // leveldb write buffer size
@@ -1314,6 +1317,11 @@ OPTION(fio_dir, OPT_STR) // fio data directory for fio-objectstore
 OPTION(rados_mon_op_timeout, OPT_DOUBLE) // how many seconds to wait for a response from the monitor before returning an error from a rados operation. 0 means no limit.
 OPTION(rados_osd_op_timeout, OPT_DOUBLE) // how many seconds to wait for a response from osds before returning an error from a rados operation. 0 means no limit.
 OPTION(rados_tracing, OPT_BOOL) // true if LTTng-UST tracepoints should be enabled
+
+OPTION(rbd_client_qos_reservation, OPT_INT)
+OPTION(rbd_client_qos_weight, OPT_INT)
+OPTION(rbd_client_qos_limit, OPT_INT)
+OPTION(rbd_client_qos_bandwidth, OPT_INT)
 
 OPTION(nss_db_path, OPT_STR) // path to nss db
 
