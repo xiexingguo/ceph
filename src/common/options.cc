@@ -3371,7 +3371,7 @@ std::vector<Option> get_global_options() {
     .set_description(""),
 
     Option("bluefs_allocator", Option::TYPE_STR, Option::LEVEL_DEV)
-    .set_default("bitmap")
+    .set_default("avl")
     .set_description(""),
 
     Option("bluefs_preextend_wal_files", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
@@ -3716,8 +3716,8 @@ std::vector<Option> get_global_options() {
     .set_description("Key value database to use for bluestore"),
 
     Option("bluestore_allocator", Option::TYPE_STR, Option::LEVEL_DEV)
-    .set_default("bitmap")
-    .set_enum_allowed({"bitmap", "stupid"})
+    .set_default("avl")
+    .set_enum_allowed({"bitmap", "stupid", "avl"})
     .set_description("Allocator policy"),
 
     Option("bluestore_freelist_blocks_per_key", Option::TYPE_INT, Option::LEVEL_DEV)
@@ -3895,6 +3895,14 @@ std::vector<Option> get_global_options() {
     Option("bluestore_debug_inject_csum_err_probability", Option::TYPE_FLOAT, Option::LEVEL_DEV)
     .set_default(0.0)
     .set_description("inject crc verification errors into bluestore device reads"),
+
+    Option("bluestore_avl_alloc_bf_threshold", Option::TYPE_UINT, Option::LEVEL_DEV)
+    .set_default(131072)
+    .set_description(""),
+
+    Option("bluestore_avl_alloc_bf_free_pct", Option::TYPE_UINT, Option::LEVEL_DEV)
+    .set_default(4)
+    .set_description(""),
 
     // -----------------------------------------
     // kstore
