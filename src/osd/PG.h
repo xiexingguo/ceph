@@ -1236,7 +1236,6 @@ public:
     vector<int> *want,
     set<pg_shard_t> *backfill,
     set<pg_shard_t> *acting_backfill,
-    pg_shard_t *want_primary,
     ostream &ss);
   static void calc_replicated_acting(
     map<pg_shard_t, pg_info_t>::const_iterator auth_log_shard,
@@ -1250,7 +1249,6 @@ public:
     vector<int> *want,
     set<pg_shard_t> *backfill,
     set<pg_shard_t> *acting_backfill,
-    pg_shard_t *want_primary,
     ostream &ss);
   void choose_async_recovery_ec(const map<pg_shard_t, pg_info_t> &all_info,
                                 const pg_info_t &auth_info,

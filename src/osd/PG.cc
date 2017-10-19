@@ -1252,7 +1252,6 @@ void PG::calc_ec_acting(
   vector<int> *_want,
   set<pg_shard_t> *backfill,
   set<pg_shard_t> *acting_backfill,
-  pg_shard_t *want_primary,
   ostream &ss)
 {
   vector<int> want(size, CRUSH_ITEM_NONE);
@@ -1302,14 +1301,9 @@ void PG::calc_ec_acting(
     }
   }
 
-  bool found_primary = false;
   for (uint8_t i = 0; i < want.size(); ++i) {
     if (want[i] != CRUSH_ITEM_NONE) {
       acting_backfill->insert(pg_shard_t(want[i], shard_id_t(i)));
-      if (!found_primary) {
-	*want_primary = pg_shard_t(want[i], shard_id_t(i));
-	found_primary = true;
-      }
     }
   }
   acting_backfill->insert(backfill->begin(), backfill->end());
@@ -1335,7 +1329,6 @@ void PG::calc_replicated_acting(
   vector<int> *want,
   set<pg_shard_t> *backfill,
   set<pg_shard_t> *acting_backfill,
-  pg_shard_t *want_primary,
   ostream &ss)
 {
   ss << "calc_acting newest update on osd." << auth_log_shard->first
@@ -1360,7 +1353,6 @@ void PG::calc_replicated_acting(
 
   ss << "calc_acting primary is osd." << primary->first
      << " with " << primary->second << std::endl;
-  *want_primary = primary->first;
   want->push_back(primary->first.osd);
   acting_backfill->insert(primary->first);
   unsigned usable = 1;
@@ -1654,7 +1646,6 @@ bool PG::choose_acting(pg_shard_t &auth_log_shard_id,
 
   set<pg_shard_t> want_backfill, want_acting_backfill;
   vector<int> want;
-  pg_shard_t want_primary;
   stringstream ss;
   if (!pool.info.ec_pool())
     calc_replicated_acting(
@@ -1669,7 +1660,6 @@ bool PG::choose_acting(pg_shard_t &auth_log_shard_id,
       &want,
       &want_backfill,
       &want_acting_backfill,
-      &want_primary,
       ss);
   else
     calc_ec_acting(
@@ -1684,7 +1674,6 @@ bool PG::choose_acting(pg_shard_t &auth_log_shard_id,
       &want,
       &want_backfill,
       &want_acting_backfill,
-      &want_primary,
       ss);
   dout(10) << ss.str() << dendl;
 
