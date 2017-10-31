@@ -190,6 +190,16 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
   return 0;
 }
 
+bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
+{
+  if (c1.pool_name != c2.pool_name)
+    return c1.pool_name < c2.pool_name;
+  else if (c1.image_name != c2.image_name)
+    return c1.image_name < c2.image_name;
+  else
+    return false;
+}
+
 } // anonymous namespace
 
   int detect_format(IoCtx &io_ctx, const string &name,
@@ -718,7 +728,8 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
     return 0;
   }
 
-  int list_children(ImageCtx *ictx, set<pair<string, string> >& names)
+  int list_children(ImageCtx *ictx,
+                    vector<child_info_t> *names)
   {
     CephContext *cct = ictx->cct;
     ldout(cct, 20) << "children list " << ictx->name << dendl;
@@ -738,7 +749,7 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
     }
 
     Rados rados(ictx->md_ctx);
-    for ( auto &info : image_info){
+    for (auto &info : image_info) {
       IoCtx ioctx;
       r = rados.ioctx_create2(info.first.first, ioctx);
       if (r < 0) {
@@ -748,17 +759,38 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
       }
 
       for (auto &id_it : info.second) {
-	string name;
-	r = cls_client::dir_get_name(&ioctx, RBD_DIRECTORY, id_it, &name);
-	if (r < 0) {
-	  lderr(cct) << "Error looking up name for image id " << id_it
-		     << " in pool " << info.first.second << dendl;
-	  return r;
-	}
-	names.insert(make_pair(info.first.second, name));
+        string name;
+        bool trash = false;
+        r = cls_client::dir_get_name(&ioctx, RBD_DIRECTORY, id_it, &name);
+        if (r == -ENOENT) {
+          cls::rbd::TrashImageSpec trash_spec;
+          r = cls_client::trash_get(&ioctx, id_it, &trash_spec);
+          if (r < 0) {
+            if (r != -EOPNOTSUPP && r != -ENOENT) {
+              lderr(cct) << "Error looking up name for image id " << id_it
+                         << " in rbd trash" << dendl;
+              return r;
+            }
+            return -ENOENT;
+          }
+          name = trash_spec.name;
+          trash = true;
+        } else if (r < 0 && r != -ENOENT) {
+          lderr(cct) << "Error looking up name for image id " << id_it
+                     << " in pool " << info.first.second << dendl;
+          return r;
+        }
+        names->push_back(
+        child_info_t {
+          info.first.second,
+          name,
+          id_it,
+          trash
+        });
       }
     }
-    
+    std::sort(names->begin(), names->end(), compare_by_name);
+
     return 0;
   }
 
