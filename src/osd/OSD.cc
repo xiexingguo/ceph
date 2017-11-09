@@ -2183,6 +2183,10 @@ will start to track new ops received afterwards.";
     f->open_object_section("pq");
     op_shardedwq.dump(f);
     f->close_section();
+  } else if (admin_command == "dump_recovery_rate") {
+    f->open_object_section("recovery rate");
+    opwq_tracker.dump(f);
+    f->close_section();
   } else if (admin_command == "dump_blacklist") {
     list<pair<entity_addr_t,utime_t> > bl;
     OSDMapRef curmap = service.get_osdmap();
@@ -3010,6 +3014,10 @@ void OSD::final_init()
 				     asok_hook,
 				     "dump op priority queue state");
   assert(r == 0);
+  r = admin_socket->register_command("dump_recovery_rate", "dump_recovery_rate",
+				     asok_hook,
+				     "dump backend recovery qos rate");
+  assert(r == 0);
   r = admin_socket->register_command("dump_blacklist", "dump_blacklist",
 				     asok_hook,
 				     "dump blacklisted clients and times");
@@ -3578,6 +3586,7 @@ int OSD::shutdown()
   cct->get_admin_socket()->unregister_command("dump_historic_ops_by_duration");
   cct->get_admin_socket()->unregister_command("dump_historic_slow_ops");
   cct->get_admin_socket()->unregister_command("dump_op_pq_state");
+  cct->get_admin_socket()->unregister_command("dump_recovery_rate");
   cct->get_admin_socket()->unregister_command("dump_blacklist");
   cct->get_admin_socket()->unregister_command("dump_watchers");
   cct->get_admin_socket()->unregister_command("dump_reservations");
@@ -10255,6 +10264,17 @@ void OSD::enqueue_op(spg_t pg, OpRequestRef& op, epoch_t epoch)
   op->osd_trace.keyval("priority", op->get_req()->get_priority());
   op->osd_trace.keyval("cost", op->get_req()->get_cost());
   op->mark_queued_for_pg();
+
+  if (cct->_conf->osd_dmc_queue_enable_pullpush) {
+    if (op->get_req()->get_type() == MSG_OSD_PG_PULL ||
+        op->get_req()->get_type() == MSG_OSD_PG_PUSH) {
+      int shard = pg.hash_to_shard(get_num_op_shards());
+      int srvid = crimson::dmclock::gen_server_id(whoami, shard);
+      dmc_op_tracker opt = get_dmc_op_tracker(srvid);
+      opt.add_cost(op->get_req()->get_cost());
+      op->set_dmc_op_tracker(opt);
+    }
+  }
   logger->tinc(l_osd_op_before_queue_op_lat, latency);
   op_shardedwq.queue(make_pair(pg, PGQueueable(op, epoch)));
 }
@@ -10288,6 +10308,15 @@ void OSD::dequeue_op(
     maybe_share_map(session, op, pg->get_osdmap());
   }
 
+  if (cct->_conf->osd_dmc_queue_enable_pullpush) {
+    if (op->get_req()->get_type() == MSG_OSD_PG_PUSH ||
+        op->get_req()->get_type() == MSG_OSD_PG_PULL) {
+      int shard = pg->info.pgid.hash_to_shard(get_num_op_shards());
+      int srvid = crimson::dmclock::gen_server_id(whoami, shard);
+      update_opwq_tracker(op, srvid);
+    }
+  }
+
   if (pg->deleting)
     return;
 
@@ -10299,6 +10328,26 @@ void OSD::dequeue_op(
   // finish
   dout(10) << "dequeue_op " << op << " finish" << dendl;
   OID_EVENT_TRACE_WITH_MSG(op->get_req(), "DEQUEUE_OP_END", false);
+}
+
+void OSD::update_opwq_tracker(OpRequestRef& op, ServerId& srv)
+{
+  dmc_op_tracker opt = op->get_dmc_op_tracker();
+  switch (opt.phase) {
+  case DMC_OP_PHASE_RESERVATION:
+    opwq_tracker.track_resp(srv,
+      crimson::dmclock::PhaseType::reservation, opt.cost);
+    break;
+  case DMC_OP_PHASE_PRIORITY:
+    opwq_tracker.track_resp(srv,
+      crimson::dmclock::PhaseType::priority, opt.cost);
+    break;
+  }
+}
+
+dmc_op_tracker OSD::get_dmc_op_tracker(ServerId& srv) {
+  auto rp = opwq_tracker.get_req_params(srv);
+  return dmc_op_tracker(rp.delta, rp.rho, rp.cost);
 }
 
 
@@ -10420,6 +10469,12 @@ const char** OSD::get_tracked_conf_keys() const
     "osd_heartbeat_min_size",
     "osd_heartbeat_interval",
     "osd_object_clean_region_max_num_intervals",
+    "osd_dmc_queue_spec_clientop",
+    "osd_dmc_queue_spec_subop",
+    "osd_dmc_queue_spec_pullpush",
+    "osd_dmc_queue_spec_snaptrim",
+    "osd_dmc_queue_spec_recovery",
+    "osd_dmc_queue_spec_scrub",
     NULL
   };
   return KEYS;
@@ -10510,6 +10565,7 @@ void OSD::handle_conf_change(const struct md_config_t *conf,
     ObjectCleanRegions::set_max_num_intervals(cct->_conf->osd_object_clean_region_max_num_intervals);
   }
 
+  maybe_update_queue_config(conf, changed);
   check_config();
 }
 
@@ -10553,6 +10609,34 @@ void OSD::check_config()
     clog->warn() << "osd_object_clean_region_max_num_intervals (" 
                  << cct->_conf->osd_object_clean_region_max_num_intervals
                 << ") is < 0";
+  }
+}
+
+void OSD::maybe_update_queue_config(const struct md_config_t *conf,
+                                    const std::set <std::string> &changed) {
+  if (changed.count("osd_dmc_queue_spec_clientop")) {
+    op_shardedwq.update_queue_config("osd_dmc_queue_spec_clientop",
+      conf->osd_dmc_queue_spec_clientop);
+  }
+  if (changed.count("osd_dmc_queue_spec_subop")) {
+    op_shardedwq.update_queue_config("osd_dmc_queue_spec_subop",
+      conf->osd_dmc_queue_spec_subop);
+  }
+  if (changed.count("osd_dmc_queue_spec_pullpush")) {
+    op_shardedwq.update_queue_config("osd_dmc_queue_spec_pullpush",
+      conf->osd_dmc_queue_spec_pullpush);
+  }
+  if (changed.count("osd_dmc_queue_spec_snaptrim")) {
+    op_shardedwq.update_queue_config("osd_dmc_queue_spec_snaptrim",
+      conf->osd_dmc_queue_spec_snaptrim);
+  }
+  if (changed.count("osd_dmc_queue_spec_recovery")) {
+    op_shardedwq.update_queue_config("osd_dmc_queue_spec_recovery",
+      conf->osd_dmc_queue_spec_recovery);
+  }
+  if (changed.count("osd_dmc_queue_spec_scrub")) {
+    op_shardedwq.update_queue_config("osd_dmc_queue_spec_scrub",
+      conf->osd_dmc_queue_spec_scrub);
   }
 }
 
