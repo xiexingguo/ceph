@@ -2764,6 +2764,14 @@ std::vector<Option> get_global_options() {
     .set_default(100)
     .set_description(""),
 
+    Option("osd_async_recovery", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
+    .set_default(false)
+    .set_description("enable asynchronous recovery"),
+
+    Option("osd_async_recovery_min_pg_log_entries", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(100)
+    .set_description("Number of entries difference above which to use asynchronous recovery when appropriate"),
+
     Option("osd_max_pg_per_osd_hard_ratio", Option::TYPE_FLOAT, Option::LEVEL_ADVANCED)
     .set_default(3)
     .set_min(1)
