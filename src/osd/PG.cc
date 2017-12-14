@@ -1477,14 +1477,13 @@ bool PG::recoverable_and_ge_min_size(const vector<int> &want)
           pool.info.is_erasure() ? shard_id_t(i) : shard_id_t::NO_SHARD));
     }
   }
-
   // We go incomplete if below min_size for ec_pools since backfill
   // does not currently maintain rollbackability
   // Otherwise, we will go "peered", but not "active"
   if (num_want_acting < pool.info.min_size &&
       (pool.info.is_erasure() ||
        !cct->_conf->osd_allow_recovery_below_min_size)) {
-    dout(10) << __func__ << "failed, below min size" << dendl;
+    dout(10) << __func__ << " failed, below min size" << dendl;
     return false;
   }
 
@@ -1526,7 +1525,7 @@ void PG::choose_async_recovery_ec(const map<pg_shard_t, pg_info_t> &all_info,
     }
   }
 
-  dout(20) << __func__ << "candidates by cost are: " << candidates_by_cost
+  dout(20) << __func__ << " candidates by cost are: " << candidates_by_cost
            << dendl;
 
   // take out as many osds as we can for async recovery, in order of cost
@@ -1539,7 +1538,7 @@ void PG::choose_async_recovery_ec(const map<pg_shard_t, pg_info_t> &all_info,
       async_recovery->insert(cur_shard);
     }
   }
-  dout(20) << __func__ << "result want=" << *want
+  dout(20) << __func__ << " result want=" << *want
            << " async_recovery=" << *async_recovery << dendl;
 }
 
@@ -1567,7 +1566,7 @@ void PG::choose_async_recovery_replicated(const map<pg_shard_t, pg_info_t> &all_
     }
   }
 
-  dout(20) << __func__ << "candidates by cost are: " << candidates_by_cost
+  dout(20) << __func__ << " candidates by cost are: " << candidates_by_cost
            << dendl;
 
   // take out as many osds as we can for async recovery, in order of cost
@@ -1577,6 +1576,7 @@ void PG::choose_async_recovery_replicated(const map<pg_shard_t, pg_info_t> &all_
     for (auto it = candidate_want.begin(); it != candidate_want.end(); ++it) {
       if (*it == cur_shard.osd) {
         candidate_want.erase(it);
+	want->swap(candidate_want);
 	async_recovery->insert(cur_shard);
         break;
       }
@@ -1585,7 +1585,7 @@ void PG::choose_async_recovery_replicated(const map<pg_shard_t, pg_info_t> &all_
       break;
     }
   }
-  dout(20) << __func__ << "result want=" << *want
+  dout(20) << __func__ << " result want=" << *want
            << " async_recovery=" << *async_recovery << dendl;
 }
 
@@ -1686,7 +1686,6 @@ bool PG::choose_acting(pg_shard_t &auth_log_shard_id,
       choose_async_recovery_replicated(all_info, auth_log_shard->second, &want, &want_async_recovery);
     }
   }
-
   if (want != acting) {
     dout(10) << "choose_acting want " << want << " != acting " << acting
 	     << ", requesting pg_temp change" << dendl;
@@ -1710,6 +1709,10 @@ bool PG::choose_acting(pg_shard_t &auth_log_shard_id,
     // Caller is GetInfo
     backfill_targets = want_backfill;
   }
+  assert(async_recovery_targets.empty() || async_recovery_targets == want_async_recovery);
+  if (async_recovery_targets.empty()) {
+    async_recovery_targets = want_async_recovery;
+  }
   // Will not change if already set because up would have had to change
   // Verify that nothing in backfill is in stray_set
   for (set<pg_shard_t>::iterator i = want_backfill.begin();
@@ -1717,8 +1720,9 @@ bool PG::choose_acting(pg_shard_t &auth_log_shard_id,
       ++i) {
     assert(stray_set.find(*i) == stray_set.end());
   }
-  dout(10) << "choose_acting want " << want << " (== acting) backfill_targets " 
-	   << want_backfill << dendl;
+  dout(10) << "choose_acting want=" << want << " backfill_targets="
+           << want_backfill << " async_recovery_targets="
+           << async_recovery_targets << dendl;
   return true;
 }
 
@@ -2721,6 +2725,7 @@ void PG::clear_recovery_state()
     finish_recovery_op(soid, true);
   }
 
+  async_recovery_targets.clear();
   backfill_targets.clear();
   backfill_info.clear();
   peer_backfill_info.clear();
