@@ -16,6 +16,7 @@
 #define COMMON_CEPH_TIME_H
 
 #include <chrono>
+#include <sys/time.h>
 
 #include "include/encoding.h"
 
