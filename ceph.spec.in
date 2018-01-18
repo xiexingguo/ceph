@@ -48,6 +48,12 @@
 %global weak_deps 1
 %endif
 
+%if 0%{?suse_version} >= 1500 || 0%{?rhel} >= 8
+%bcond_with python2
+%else
+%bcond_without python2
+%endif
+
 %if %{with selinux} || %{with libceph_selinux}
 # get selinux policy version
 %{!?_selinux_policy_version: %global _selinux_policy_version 0.0.0}
@@ -58,8 +64,6 @@
 %{!?python3_pkgversion: %global python3_pkgversion 3}
 %{!?python3_version_nodots: %global python3_version_nodots 3}
 %{!?python3_version: %global python3_version 3}
-
-%bcond_without python2
 
 %if 0%{?fedora} >= 29 || 0%{?suse_version} >= 1500 || 0%{?rhel} >= 8
 %global _defined_if_python2_buildid 1
@@ -130,9 +134,17 @@ BuildRequires:	selinux-policy-devel
 #BuildRequires:	python-werkzeug
 %endif
 %if 0%{?suse_version}
+%if 0%{with python2}
 BuildRequires:	python-CherryPy
 BuildRequires:	python-Werkzeug
+BuildRequires:	python-pecan
 BuildRequires:	python-numpy-devel
+%else
+BuildRequires:	python%{python3_pkgversion}-CherryPy
+BuildRequires:	python%{python3_pkgversion}-Werkzeug
+BuildRequires:	python%{python3_pkgversion}-pecan
+BuildRequires:	python%{python3_pkgversion}-numpy-devel
+%endif
 %endif
 ### used by tests of ceph-detect-init and ceph-disk
 #BuildRequires:  python-coverage
@@ -201,9 +213,15 @@ BuildRequires:	keyutils-devel
 BuildRequires:  libopenssl-devel
 BuildRequires:  lsb-release
 BuildRequires:  openldap2-devel
+%if 0%{with python2}
 BuildRequires:	python-Cython
 BuildRequires:	python-PrettyTable
 BuildRequires:	python-Sphinx
+%else
+BuildRequires:	python%{python3_pkgversion}-Cython
+BuildRequires:	python%{python3_pkgversion}-PrettyTable
+BuildRequires:	python%{python3_pkgversion}-Sphinx
+%endif
 BuildRequires:  rdma-core-devel
 %endif
 %if 0%{?fedora} || 0%{?rhel}
@@ -393,10 +411,19 @@ Requires:       python%{_python_buildid}-six
 %endif
 %endif
 %if 0%{?suse_version}
-Requires: 	python-CherryPy
+%if 0%{with python2}
+Requires:       python-CherryPy
 Requires:       python-Jinja2
 Requires:       python-Werkzeug
+Requires:       python-pecan
 Requires:       python-pyOpenSSL
+%else
+Requires:       python%{python3_pkgversion}-CherryPy
+Requires:       python%{python3_pkgversion}-Jinja2
+Requires:       python%{python3_pkgversion}-Werkzeug
+Requires:       python%{python3_pkgversion}-pecan
+Requires:       python%{python3_pkgversion}-pyOpenSSL
+%endif
 %endif
 ### used by mgr/restful
 #Requires:       python-pecan
@@ -914,6 +941,12 @@ cmake .. \
     -DCMAKE_INSTALL_INCLUDEDIR=%{_includedir} \
     -DWITH_MANPAGE=ON \
     -DWITH_PYTHON3=%{python3_version} \
+%if %{with python2}
+    -DWITH_PYTHON2=ON \
+%else
+    -DWITH_PYTHON2=OFF \
+    -DMGR_PYTHON_VERSION=3 \
+%endif
     -DWITH_SYSTEMD=ON \
 %if 0%{?rhel} && ! 0%{?centos}
     -DWITH_SUBMAN=ON \
