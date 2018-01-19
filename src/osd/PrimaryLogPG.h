@@ -1071,7 +1071,8 @@ protected:
   bool new_backfill;
 
   int prep_object_replica_pushes(const hobject_t& soid, eversion_t v,
-				 PGBackend::RecoveryHandle *h);
+				 PGBackend::RecoveryHandle *h,
+				 bool *work_started);
   int prep_object_replica_deletes(const hobject_t& soid, eversion_t v,
 				  PGBackend::RecoveryHandle *h);
 
@@ -1197,7 +1198,8 @@ protected:
     ThreadPool::TPHandle &handle, uint64_t *started) override;
 
   uint64_t recover_primary(uint64_t max, ThreadPool::TPHandle &handle);
-  uint64_t recover_replicas(uint64_t max, ThreadPool::TPHandle &handle);
+  uint64_t recover_replicas(uint64_t max, ThreadPool::TPHandle &handle,
+		            bool *recovery_started);
   hobject_t earliest_peer_backfill() const;
   bool all_peer_done() const;
   /**
