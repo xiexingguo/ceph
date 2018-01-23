@@ -244,8 +244,11 @@ if(WITH_CEPHFS_JAVA)
 endif()
 
 # Python stuff
-find_package(PythonInterp 2 REQUIRED)
-find_package(PythonLibs ${PYTHON_VERSION_STRING} EXACT REQUIRED)
+option(WITH_PYTHON2 "build python2 bindings" ON)
+if(WITH_PYTHON2)
+  find_package(PythonInterp 2 REQUIRED)
+  find_package(PythonLibs ${PYTHON_VERSION_STRING} EXACT REQUIRED)
+endif()
 
 option(WITH_PYTHON3 "build python3 bindings" ON)
 if(WITH_PYTHON3)
