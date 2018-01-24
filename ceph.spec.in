@@ -48,10 +48,14 @@
 %global weak_deps 1
 %endif
 
-%if 0%{?suse_version} >= 1500 || 0%{?rhel} >= 8
+%if 0%{?fedora} >= 29 || 0%{?suse_version} >= 1500 || 0%{?rhel} >= 8
 %bcond_with python2
 %else
 %bcond_without python2
+%endif
+
+%if 0%{without python2}
+%global _defined_if_python2_absent 1
 %endif
 
 %if %{with selinux} || %{with libceph_selinux}
@@ -62,21 +66,16 @@
 %{!?_udevrulesdir: %global _udevrulesdir /lib/udev/rules.d}
 %{!?tmpfiles_create: %global tmpfiles_create systemd-tmpfiles --create}
 %{!?python3_pkgversion: %global python3_pkgversion 3}
+
 %{!?python3_version_nodots: %global python3_version_nodots 3}
 %{!?python3_version: %global python3_version 3}
 
-%if 0%{?fedora} >= 29 || 0%{?suse_version} >= 1500 || 0%{?rhel} >= 8
-%global _defined_if_python2_buildid 1
-%endif
+# define _python_buildid macro which will expand to the empty string when
+# building with python2
+%global _python_buildid %{?_defined_if_python2_absent:%{python3_pkgversion}}
 
 %{!?python2_pkgversion: %global python2_pkgversion 2}
-%global _python2_buildid %{?_defined_if_python2_buildid:%{python2_pkgversion}}
-
-%if 0%{with python2}
-%global _python_buildid %{_python2_buildid}
-%else
-%global _python_buildid %{python3_pkgversion}
-%endif
+%global _python2_buildid %{?_defined_if_python2_absent:%{python2_pkgversion}}
 
 # unify libexec for all targets
 %global _libexecdir %{_exec_prefix}/lib
@@ -134,17 +133,9 @@ BuildRequires:	selinux-policy-devel
 #BuildRequires:	python-werkzeug
 %endif
 %if 0%{?suse_version}
-%if 0%{with python2}
-BuildRequires:	python-CherryPy
-BuildRequires:	python-Werkzeug
-BuildRequires:	python-pecan
-BuildRequires:	python-numpy-devel
-%else
-BuildRequires:	python%{python3_pkgversion}-CherryPy
-BuildRequires:	python%{python3_pkgversion}-Werkzeug
-BuildRequires:	python%{python3_pkgversion}-pecan
-BuildRequires:	python%{python3_pkgversion}-numpy-devel
-%endif
+BuildRequires:  python%{_python_buildid}-CherryPy
+BuildRequires:  python%{_python_buildid}-Werkzeug
+BuildRequires:  python%{_python_buildid}-numpy-devel
 %endif
 ### used by tests of ceph-detect-init and ceph-disk
 #BuildRequires:  python-coverage
@@ -213,15 +204,10 @@ BuildRequires:	keyutils-devel
 BuildRequires:  libopenssl-devel
 BuildRequires:  lsb-release
 BuildRequires:  openldap2-devel
-%if 0%{with python2}
-BuildRequires:	python-Cython
-BuildRequires:	python-PrettyTable
-BuildRequires:	python-Sphinx
-%else
-BuildRequires:	python%{python3_pkgversion}-Cython
-BuildRequires:	python%{python3_pkgversion}-PrettyTable
-BuildRequires:	python%{python3_pkgversion}-Sphinx
-%endif
+BuildRequires:	python%{_python_buildid}-base
+BuildRequires:	python%{_python_buildid}-Cython
+BuildRequires:	python%{_python_buildid}-PrettyTable
+BuildRequires:	python%{_python_buildid}-Sphinx
 BuildRequires:  rdma-core-devel
 %endif
 %if 0%{?fedora} || 0%{?rhel}
@@ -234,29 +220,31 @@ BuildRequires:	libibverbs-devel
 BuildRequires:  openldap-devel
 BuildRequires:  openssl-devel
 BuildRequires:  redhat-lsb-core
-#BuildRequires:	Cython
 #BuildRequires:	python-prettytable
-#BuildRequires:	python-sphinx
+BuildRequires:	python%{_python_buildid}-sphinx
 %endif
 # python34-... for RHEL, python3-... for all other supported distros
 %if 0%{?rhel}
+BuildRequires:	python%{python3_pkgversion}-devel
+BuildRequires:	python%{python3_pkgversion}-setuptools
 %if 0%{?rhel} == 7
-BuildRequires:  python-sphinx
-BuildRequires:  python3-devel
-BuildRequires:  python3-setuptools
-BuildRequires:  python36-Cython
-BuildRequires:  Cython
+BuildRequires:	python%{python3_version_nodots}-Cython
 %else
-BuildRequires:  python3-sphinx
-BuildRequires:  python36-devel
-BuildRequires:  python3-setuptools
-BuildRequires:  python3-Cython
-BuildRequires:  python2-Cython
+BuildRequires:	python%{python3_pkgversion}-Cython
 %endif
 %else
 BuildRequires:	python3-devel
 BuildRequires:	python3-setuptools
 BuildRequires:	python3-Cython
+%endif
+%if 0%{?rhel}
+BuildRequires:	python%{_python2_buildid}-devel
+BuildRequires:	python%{_python2_buildid}-setuptools
+%if 0%{?rhel} == 7
+BuildRequires:	Cython
+%else
+BuildRequires:	python2-Cython
+%endif
 %endif
 # lttng and babeltrace for rbd-replay-prep
 %if %{with lttng}
@@ -411,19 +399,11 @@ Requires:       python%{_python_buildid}-six
 %endif
 %endif
 %if 0%{?suse_version}
-%if 0%{with python2}
-Requires:       python-CherryPy
-Requires:       python-Jinja2
-Requires:       python-Werkzeug
-Requires:       python-pecan
-Requires:       python-pyOpenSSL
-%else
-Requires:       python%{python3_pkgversion}-CherryPy
-Requires:       python%{python3_pkgversion}-Jinja2
-Requires:       python%{python3_pkgversion}-Werkzeug
-Requires:       python%{python3_pkgversion}-pecan
-Requires:       python%{python3_pkgversion}-pyOpenSSL
-%endif
+Requires:       python%{_python_buildid}-CherryPy
+Requires:       python%{_python_buildid}-Jinja2
+Requires:       python%{_python_buildid}-Werkzeug
+Requires:       python%{_python_buildid}-pecan
+Requires:       python%{_python_buildid}-pyOpenSSL
 %endif
 ### used by mgr/restful
 #Requires:       python-pecan
