@@ -299,6 +299,9 @@ int main(int argc, const char **argv)
 
   common_init_finish(g_ceph_context);
 
+  init_async_signal_handler();
+  register_async_signal_handler(SIGHUP, sighup_handler);
+
   int r = rgw_tools_init(g_ceph_context);
   if (r < 0) {
     derr << "ERROR: unable to initialize rgw tools" << dendl;
@@ -440,8 +443,6 @@ int main(int argc, const char **argv)
     exit(1);
   }
 
-  init_async_signal_handler();
-  register_async_signal_handler(SIGHUP, sighup_handler);
   register_async_signal_handler(SIGTERM, handle_sigterm);
   register_async_signal_handler(SIGINT, handle_sigterm);
   register_async_signal_handler(SIGUSR1, handle_sigterm);
