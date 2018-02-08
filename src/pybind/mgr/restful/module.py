@@ -13,7 +13,7 @@ import traceback
 import six
 import socket
 
-import common
+from . import common
 
 from uuid import uuid4
 from pecan import jsonify, make_app
@@ -21,7 +21,7 @@ from OpenSSL import crypto
 from pecan.rest import RestController
 from werkzeug.serving import make_server, make_ssl_devcert
 
-from hooks import ErrorHook
+from .hooks import ErrorHook
 from mgr_module import MgrModule, CommandResult
 
 
