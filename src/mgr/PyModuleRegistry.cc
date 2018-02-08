@@ -141,6 +141,73 @@ std::string PyModule::get_site_packages()
   return site_packages.str();
 }
 
+#if PY_MAJOR_VERSION >= 3
+PyObject* PyModule::init_ceph_logger()
+{
+  auto py_logger = PyModule_Create(&ceph_logger_module);
+  PySys_SetObject("stderr", py_logger);
+  PySys_SetObject("stdout", py_logger);
+  return py_logger;
+}
+#else
+void PyModule::init_ceph_logger()
+{
+  auto py_logger = Py_InitModule("ceph_logger", log_methods);
+  PySys_SetObject(const_cast<char*>("stderr"), py_logger);
+  PySys_SetObject(const_cast<char*>("stdout"), py_logger);
+}
+#endif
+
+#if PY_MAJOR_VERSION >= 3
+PyObject* PyModule::init_ceph_module()
+#else
+void PyModule::init_ceph_module()
+#endif
+{
+  static PyMethodDef module_methods[] = {
+    {nullptr, nullptr, 0, nullptr}
+  };
+#if PY_MAJOR_VERSION >= 3
+  static PyModuleDef ceph_module_def = {
+    PyModuleDef_HEAD_INIT,
+    "ceph_module",
+    nullptr,
+    -1,
+    module_methods,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr
+  };
+  PyObject *ceph_module = PyModule_Create(&ceph_module_def);
+#else
+  PyObject *ceph_module = Py_InitModule("ceph_module", module_methods);
+#endif
+  assert(ceph_module != nullptr);
+  std::map<const char*, PyTypeObject*> classes{
+    {{"BaseMgrModule", &BaseMgrModuleType},
+     {"BaseMgrStandbyModule", &BaseMgrStandbyModuleType},
+     {"BasePyOSDMap", &BasePyOSDMapType},
+     {"BasePyOSDMapIncremental", &BasePyOSDMapIncrementalType},
+     {"BasePyCRUSH", &BasePyCRUSHType}}
+  };
+  for (auto klass : classes) {
+    auto name = klass.first;
+    auto type = klass.second;
+
+    type->tp_new = PyType_GenericNew;
+    if (PyType_Ready(type) < 0) {
+      assert(0);
+    }
+    Py_INCREF(type);
+
+    PyModule_AddObject(ceph_module, name, (PyObject *)type);
+  }
+#if PY_MAJOR_VERSION >= 3
+  return ceph_module;
+#endif
+}
+
 int PyModuleRegistry::init(const MgrMap &map)
 {
   Mutex::Locker locker(lock);
@@ -161,6 +228,11 @@ int PyModuleRegistry::init(const MgrMap &map)
 #else
   Py_SetProgramName(const_cast<char*>(PYTHON_EXECUTABLE));
 #endif
+  // Add more modules
+  if (g_conf->get_val<bool>("daemonize")) {
+    PyImport_AppendInittab("ceph_logger", PyModule::init_ceph_logger);
+  }
+  PyImport_AppendInittab("ceph_module", PyModule::init_ceph_module);
   Py_InitializeEx(0);
 
   // Let CPython know that we will be calling it back from other
@@ -207,7 +279,7 @@ int PyModule::load(PyThreadState *pMainThreadState)
 {
   assert(pMainThreadState != nullptr);
 
-  // Configure sub-interpreter and construct C++-generated python classes
+  // Configure sub-interpreter
   {
     SafeThreadState sts(pMainThreadState);
     Gil gil(sts);
@@ -227,19 +299,6 @@ int PyModule::load(PyThreadState *pMainThreadState)
       const char *argv[] = {"ceph-mgr"};
       PySys_SetArgv(1, (char**)argv);
 #endif
-
-      if (g_conf->daemonize) {
-#if PY_MAJOR_VERSION >= 3
-        auto py_logger = PyModule_Create(&ceph_logger_module);
-        PySys_SetObject("stderr", py_logger);
-        PySys_SetObject("stdout", py_logger);
-#else
-        auto py_logger = Py_InitModule("ceph_logger", log_methods);
-        PySys_SetObject(const_cast<char*>("stderr"), py_logger);
-        PySys_SetObject(const_cast<char*>("stdout"), py_logger);
-#endif
-      }
-
       // Configure sys.path to include mgr_module_path
       string paths = (":" + get_site_packages() +
                             ":" + g_conf->get_val<std::string>("mgr_module_path"));
@@ -254,46 +313,7 @@ int PyModule::load(PyThreadState *pMainThreadState)
       dout(10) << "Computed sys.path '" << sys_path << "'" << dendl;
 #endif
     }
-
-    static PyMethodDef module_methods[] = {
-      {nullptr}
-    };
-#if PY_MAJOR_VERSION >= 3
-    static PyModuleDef ceph_module_def = {
-      PyModuleDef_HEAD_INIT,
-      "ceph_module",
-      nullptr,
-      -1,
-      module_methods,
-    };
-#endif
-
-    // Initialize module
-#if PY_MAJOR_VERSION >= 3
-    PyObject *ceph_module = PyModule_Create(&ceph_module_def);
-#else
-    PyObject *ceph_module = Py_InitModule("ceph_module", module_methods);
-#endif
-    assert(ceph_module != nullptr);
-
-    auto load_class = [ceph_module](const char *name, PyTypeObject *type)
-    {
-      type->tp_new = PyType_GenericNew;
-      if (PyType_Ready(type) < 0) {
-          assert(0);
-      }
-      Py_INCREF(type);
-
-      PyModule_AddObject(ceph_module, name, (PyObject *)type);
-    };
-
-    load_class("BaseMgrModule", &BaseMgrModuleType);
-    load_class("BaseMgrStandbyModule", &BaseMgrStandbyModuleType);
-    load_class("BasePyOSDMap", &BasePyOSDMapType);
-    load_class("BasePyOSDMapIncremental", &BasePyOSDMapIncrementalType);
-    load_class("BasePyCRUSH", &BasePyCRUSHType);
   }
-
   // Environment is all good, import the external module
   {
     Gil gil(pMyThreadState);
