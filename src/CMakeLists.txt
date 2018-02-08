@@ -259,6 +259,14 @@ if(WITH_PYTHON3)
   find_package(Python3Libs ${PYTHON3_VERSION_STRING} EXACT REQUIRED)
 endif()
 
+# the major version of the python bindings as a dependency of other
+# targets
+if(WITH_PYTHON2)
+  set(PY_BINDING_INFIX "")
+else()
+  set(PY_BINDING_INFIX 3)
+endif()
+
 if(HAVE_XIO)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${XIO_INCLUDE_DIR}")
   list(APPEND EXTRALIBS ${XIO_LIBRARY} pthread rt)
@@ -1119,12 +1127,12 @@ add_custom_target(vstart-base DEPENDS
     monmaptool
     crushtool
     rados
-    cython_rados
-    )
+    cython${PY_BINDING_INFIX}_rados)
 
 add_custom_target(vstart DEPENDS
     vstart-base
-    ceph-mds)
+    ceph-mds
+    cython${PY_BINDING_INFIX}_rbd)
 if(WITH_RADOSGW)
   add_dependencies(vstart radosgw radosgw-admin)
 endif(WITH_RADOSGW)
@@ -1137,7 +1145,7 @@ endif(WITH_LTTNG)
 add_custom_target(cephfs_testing DEPENDS
     vstart
     rados
-    cython_modules
+    cython${PY_BINDING_INFIX}_modules
     cephfs
     cls_cephfs
     ceph-fuse
