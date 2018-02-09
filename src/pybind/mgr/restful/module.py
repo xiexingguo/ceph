@@ -15,6 +15,7 @@ import six
 import socket
 
 from . import common
+from . import context
 
 from uuid import uuid4
 from pecan import jsonify, make_app
@@ -24,10 +25,6 @@ from werkzeug.serving import make_server, make_ssl_devcert
 
 from .hooks import ErrorHook
 from mgr_module import MgrModule, CommandResult
-
-
-# Global instance to share
-instance = None
 
 
 class CannotServe(Exception):
@@ -90,7 +87,7 @@ class CommandsRequest(object):
             results.append(result)
 
             # Run the command
-            instance.send_command(result, 'mon', '', json.dumps(commands[index]), tag)
+            context.instance.send_command(result, 'mon', '', json.dumps(commands[index]), tag)
 
         return results
 
@@ -231,8 +228,7 @@ class Module(MgrModule):
 
     def __init__(self, *args, **kwargs):
         super(Module, self).__init__(*args, **kwargs)
-        global instance
-        instance = self
+        context.instance = self
 
         self.requests = []
         self.requests_lock = threading.RLock()
