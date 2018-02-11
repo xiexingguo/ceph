@@ -9,6 +9,7 @@ from __future__ import absolute_import
 # gatekeeper to all accesses to data from the C++ side (e.g. the REST API
 # request handlers need to see it)
 from collections import defaultdict
+from functools import cmp_to_key
 import collections
 
 _global_instance = {'plugin': None}
@@ -21,6 +22,7 @@ import os
 import logging
 import logging.config
 import json
+import six
 import sys
 import time
 import threading
@@ -457,7 +459,7 @@ class Module(MgrModule):
                 )
 
         # Find the standby replays
-        for gid_str, daemon_info in mdsmap['info'].iteritems():
+        for gid_str, daemon_info in six.iteritems(mdsmap['info']):
             if daemon_info['state'] != "up:standby-replay":
                 continue
 
@@ -561,14 +563,12 @@ class Module(MgrModule):
                 # Transform the `checks` dict into a list for the convenience
                 # of rendering from javascript.
                 checks = []
-                for k, v in health['checks'].iteritems():
+                for k, v in six.iteritems(health['checks']):
                     v['type'] = k
                     checks.append(v)
 
-                checks = sorted(checks, cmp=lambda a, b: a['severity'] > b['severity'])
-
+                checks = sorted(checks, key=lambda x: x['severity'])
                 health['checks'] = checks
-
                 return health
 
             def _toplevel_data(self):
