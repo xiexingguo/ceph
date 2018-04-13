@@ -10564,6 +10564,7 @@ const char** OSD::get_tracked_conf_keys() const
     "osd_load_balancer_op_priority_mode",
     "osd_load_balancer_client_op_white_noise_filter",
     "osd_load_balancer_recovery_op_white_noise_filter",
+    "osd_tick_interval",
     "osd_load_balancer_idle_interval",
     "osd_load_balancer_spec_low",
     "osd_load_balancer_spec_default",
@@ -10662,6 +10663,7 @@ void OSD::handle_conf_change(const struct md_config_t *conf,
       changed.count("osd_load_balancer_op_priority_mode") ||
       changed.count("osd_load_balancer_client_op_white_noise_filter") ||
       changed.count("osd_load_balancer_recovery_op_white_noise_filter") ||
+      changed.count("osd_tick_interval") || // for sample
       changed.count("osd_load_balancer_idle_interval") ||
       changed.count("osd_load_balancer_spec_low") ||
       changed.count("osd_load_balancer_spec_default") ||
