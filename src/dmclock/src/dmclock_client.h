@@ -43,6 +43,7 @@ namespace crimson {
       uint32_t rate_cost;
       uint32_t rate_delta_peak;
       uint32_t rate_rho_peak;
+      uint32_t rate_cost_peak;
 
       std::vector<std::pair<uint32_t, uint32_t>> lastest_rates;
       uint32_t rates_idx;
@@ -208,11 +209,11 @@ namespace crimson {
 
       void dump(ceph::Formatter *f) {
         f->open_object_section("servers_rate");
+        uint64_t sum_average_ops = 0;
+        uint64_t sum_average_bandwidth = 0;
         for (auto i = server_map.begin(); i != server_map.end(); i++) {
-          uint64_t avgrate_5seconds_sum  = 0;
-          uint64_t avgrate_5seconds_res  = 0;
-          uint64_t avgrate_30seconds_sum = 0;
-          uint64_t avgrate_30seconds_res = 0;
+          uint64_t average_rate_ops = 0;
+          uint64_t average_rate_bandwidth = 0;
 
           if ( i->second.rates_idx < 1
             || i->second.lastest_rates.size() < 1) {
@@ -220,28 +221,24 @@ namespace crimson {
           }
           for (uint32_t n = 0, idx = (i->second.rates_idx - 1) % i->second.lastest_rates.size();
             n < 30; n++, idx = (idx == 0 ? i->second.lastest_rates.size() - 1 : idx - 1)) {
-            if (n < 5) {
-              avgrate_5seconds_sum += i->second.lastest_rates[idx].first;
-              avgrate_5seconds_res += i->second.lastest_rates[idx].second;
-            }
-            avgrate_30seconds_sum += i->second.lastest_rates[idx].first;
-            avgrate_30seconds_res += i->second.lastest_rates[idx].second;
+            average_rate_ops += i->second.lastest_rates[idx].first;
+            average_rate_bandwidth += i->second.lastest_rates[idx].second;
           }
-          avgrate_5seconds_sum = (avgrate_5seconds_sum + 2)/ 5; //+2 for round
-          avgrate_5seconds_res = (avgrate_5seconds_res + 2)/ 5;
-          avgrate_30seconds_sum = (avgrate_30seconds_sum + 15)/ 30; //+15 for round
-          avgrate_30seconds_res = (avgrate_30seconds_res + 15)/ 30;
+          average_rate_ops = (average_rate_ops + 15) / 30; // +15 for round
+          average_rate_bandwidth = (average_rate_bandwidth + 15) / 30;
 
           std::stringstream oss;
           std::pair<int, int> osdshard = get_osd_shard(i->first);
           oss << "osd." << osdshard.first << "." << osdshard.second;
-          f->dump_format(oss.str().c_str(), "[%6u|%-6u, %6u,%6u]  r:[%6u|%-6u, %6u,%6u] %u",
-            i->second.rate_delta, i->second.rate_delta_peak,
-            avgrate_5seconds_sum, avgrate_30seconds_sum,
-            i->second.rate_rho, i->second.rate_rho_peak,
-            avgrate_5seconds_res, avgrate_30seconds_res,
-            i->second.rate_cost);
+          f->dump_format(oss.str().c_str(), "[%6u|%-6u,%6u].%-6u bdw:[%9u|%-9u,%9u]",
+            i->second.rate_delta, i->second.rate_delta_peak, average_rate_ops,
+            i->second.rate_rho,
+            i->second.rate_cost, i->second.rate_cost_peak, average_rate_bandwidth);
+          sum_average_ops += average_rate_ops;
+          sum_average_bandwidth += average_rate_bandwidth;
         }
+        f->dump_format("summary", "[average rate of lastest 30 secs: ops %lu, bdw %lu ( %.2fMB/s )]",
+          sum_average_ops, sum_average_bandwidth, (double)sum_average_bandwidth / (1 << 20));
         f->close_section();
       }
 
@@ -296,13 +293,15 @@ namespace crimson {
             i->second.rate_delta : i->second.rate_delta_peak;
           i->second.rate_rho_peak = i->second.rate_rho > i->second.rate_rho_peak ?
             i->second.rate_rho : i->second.rate_rho_peak;
+          i->second.rate_cost_peak = i->second.rate_cost > i->second.rate_cost_peak ?
+            i->second.rate_cost : i->second.rate_cost_peak;
 
           if (i->second.lastest_rates.size() < 32) {
             i->second.lastest_rates.emplace_back(
-              std::make_pair(i->second.rate_delta, i->second.rate_rho));
+              std::make_pair(i->second.rate_delta, i->second.rate_cost));
           } else {
             i->second.lastest_rates[i->second.rates_idx % 32] =
-              std::make_pair(i->second.rate_delta, i->second.rate_rho);
+              std::make_pair(i->second.rate_delta, i->second.rate_cost);
           }
           i->second.rates_idx++;
         }
