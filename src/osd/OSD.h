@@ -906,8 +906,7 @@ private:
   utime_t defer_recovery_until;
   uint64_t recovery_ops_active;
   uint64_t recovery_ops_reserved;
-  bool recovery_paused_by_admin = false;
-  bool recovery_paused_by_load_balancer = false;
+  bool recovery_paused;
 #ifdef DEBUG_RECOVERY_OIDS
   map<spg_t, set<hobject_t> > recovery_oids;
 #endif
@@ -940,33 +939,18 @@ public:
     defer_recovery_until = ceph_clock_now();
     defer_recovery_until += defer_for;
   }
-  void pause_recovery(bool from_admin = true) {
+  void pause_recovery() {
     Mutex::Locker l(recovery_lock);
-    if (from_admin)
-      recovery_paused_by_admin = true;
-    else
-      recovery_paused_by_load_balancer = true;
+    recovery_paused = true;
   }
-  bool recovery_is_paused(bool lock = true) {
-    if (lock) {
-      Mutex::Locker l(recovery_lock);
-      return recovery_paused_by_admin || recovery_paused_by_load_balancer;
-    }
-    return recovery_paused_by_admin || recovery_paused_by_load_balancer;
-  }
-  void unpause_recovery(bool from_admin = true) {
+  bool recovery_is_paused() {
     Mutex::Locker l(recovery_lock);
-    if (!recovery_paused_by_admin && !recovery_paused_by_load_balancer) {
-      // so this method is idempotent and we don't have to worry about
-      // calling _maybe_queue_recovery below multiple times...
-      return;
-    }
-    if (from_admin)
-      recovery_paused_by_admin = false;
-    else
-      recovery_paused_by_load_balancer = false;
-    if (!recovery_paused_by_admin && !recovery_paused_by_load_balancer)
-      _maybe_queue_recovery();
+    return recovery_paused;
+  }
+  void unpause_recovery() {
+    Mutex::Locker l(recovery_lock);
+    recovery_paused = false;
+    _maybe_queue_recovery();
   }
   void kick_recovery_queue() {
     Mutex::Locker l(recovery_lock);
@@ -1759,6 +1743,7 @@ private:
     std::mutex lock; // protect members below on changing
     bool enabled;
     string mode;
+    string spec_low;       // prefer to client op
     string spec_default;
     string spec_unlimited; // be careful!
 
@@ -1773,6 +1758,7 @@ private:
       auto conf = osd->cct->_conf;
       enabled = conf->get_val<bool>("osd_load_balancer_enabled");
       mode = conf->get_val<string>("osd_load_balancer_op_priority_mode");
+      spec_low = conf->get_val<string>("osd_load_balancer_spec_low");
       spec_default = conf->get_val<string>("osd_load_balancer_spec_default");
       spec_unlimited = conf->get_val<string>(
         "osd_load_balancer_spec_unlimited");
@@ -1798,20 +1784,8 @@ private:
         spec_toapply = spec_unlimited;
       } else {
         assert(mode == "client_op_prioritized");
-        if (!cis.is_idle()) {
-          osd->service.pause_recovery(false);
-          return;
-        }
-
-        // idle clients
-        // note that below here there is no way we can reliably tell
-        // whether a recovery is in-progess or not, so simply promote
-        // to unlimited and we'll re-pause if any client activities is
-        // detected on next sample period
-        spec_toapply = spec_unlimited;
+        spec_toapply = spec_low;
       }
-
-      osd->service.unpause_recovery(false); // if ever
 
       // try apply new spec
       if (spec_applied != spec_toapply) {
@@ -1862,6 +1836,7 @@ private:
       ris.dump(f);
       f->close_section();
       f->dump_string("spec_applied", spec_applied);
+      f->dump_string("spec_low", spec_low);
       f->dump_string("spec_default", spec_default);
       f->dump_string("spec_unlimited", spec_unlimited);
     }
