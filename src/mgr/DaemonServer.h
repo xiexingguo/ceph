@@ -82,6 +82,7 @@ protected:
   epoch_t pending_service_map_dirty = 0;
 
   Mutex lock;
+  MgrDaemonHook *m_daemon_hook = nullptr;
 
   std::map<string, imageperf_t> imgsmap;
   SafeTimer timer;
@@ -157,6 +158,7 @@ public:
                           const std::set <std::string> &changed) override;
   void dump_imgsperf(Formatter *f, set<string> &who);
   void dump_imgsperf(ostream& ss, set<string> &who);
+  void dump_cluster_state(Formatter *f);
   void send_reset_recovery_limits(
     int who,
     uint8_t options,
