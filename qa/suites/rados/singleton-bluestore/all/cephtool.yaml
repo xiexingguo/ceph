@@ -26,6 +26,7 @@ tasks:
     - \(OSD_
     - \(PG_
     - \(SMALLER_PG_NUM\)
+    - \(SMALLER_PGP_NUM\)
     - \(CACHE_POOL_NO_HIT_SET\)
     - erasure code profile property .ruleset-failure-domain. is no longer supported
     - \(CACHE_POOL_NEAR_FULL\)
