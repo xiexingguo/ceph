@@ -14,7 +14,12 @@ fi
 
 mkdir build
 cd build
-cmake -DBOOST_J=$(nproc) $ARGS "$@" ..
+if type cmake3 > /dev/null 2>&1 ; then
+    CMAKE=cmake3
+else
+    CMAKE=cmake
+fi
+${CMAKE} -DBOOST_J=$(nproc) $ARGS "$@" ..
 
 # minimal config to find plugins
 cat <<EOF > ceph.conf
