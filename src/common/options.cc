@@ -2649,6 +2649,10 @@ std::vector<Option> get_global_options() {
     .set_default("0,100,0,20M")
     .set_description(""),
 
+    Option("osd_load_balancer_spec_high", Option::TYPE_STR, Option::LEVEL_ADVANCED)
+    .set_default("0,100,0,80M")
+    .set_description(""),
+
     Option("osd_load_balancer_spec_unlimited", Option::TYPE_STR, Option::LEVEL_ADVANCED)
     .set_default("0,100,0,0")
     .set_description(""),

@@ -1745,6 +1745,7 @@ private:
     string mode;
     string spec_low;       // prefer to client op
     string spec_default;
+    string spec_high;
     string spec_unlimited; // be careful!
 
     LoadBalancer(OSD *o) : osd(o),
@@ -1760,6 +1761,7 @@ private:
       mode = conf->get_val<string>("osd_load_balancer_op_priority_mode");
       spec_low = conf->get_val<string>("osd_load_balancer_spec_low");
       spec_default = conf->get_val<string>("osd_load_balancer_spec_default");
+      spec_high = conf->get_val<string>("osd_load_balancer_spec_high");
       spec_unlimited = conf->get_val<string>(
         "osd_load_balancer_spec_unlimited");
       cis.maybe_update_config(conf);
@@ -1777,8 +1779,8 @@ private:
         // need further adjustment?
         if (cis.is_idle() && !ris.is_idle()) {
           // no client ops and recovery is in-progress,
-          // promote to unlimited (so we can recover at full speed)
-          spec_toapply = spec_unlimited;
+          // promote to high spec (so we can recover at high speed)
+          spec_toapply = spec_high;
         }
       } else if (mode == "recovery_op_prioritized") {
         spec_toapply = spec_unlimited;
@@ -1838,6 +1840,7 @@ private:
       f->dump_string("spec_applied", spec_applied);
       f->dump_string("spec_low", spec_low);
       f->dump_string("spec_default", spec_default);
+      f->dump_string("spec_high", spec_high);
       f->dump_string("spec_unlimited", spec_unlimited);
     }
   } load_balancer;

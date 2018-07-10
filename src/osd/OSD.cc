@@ -10568,6 +10568,7 @@ const char** OSD::get_tracked_conf_keys() const
     "osd_load_balancer_idle_interval",
     "osd_load_balancer_spec_low",
     "osd_load_balancer_spec_default",
+    "osd_load_balancer_spec_high",
     "osd_load_balancer_spec_unlimited",
     NULL
   };
@@ -10667,6 +10668,7 @@ void OSD::handle_conf_change(const struct md_config_t *conf,
       changed.count("osd_load_balancer_idle_interval") ||
       changed.count("osd_load_balancer_spec_low") ||
       changed.count("osd_load_balancer_spec_default") ||
+      changed.count("osd_load_balancer_spec_high") ||
       changed.count("osd_load_balancer_spec_unlimited")) {
     load_balancer.maybe_update_config();
   }
