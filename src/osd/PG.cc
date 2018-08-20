@@ -1900,6 +1900,7 @@ void PG::activate(ObjectStore::Transaction& t,
     pg_log.reset_recovery_pointers();
   } else {
     dout(10) << "activate - not complete, " << missing << dendl;
+    info.stats.stats.sum.num_objects_missing = missing.num_missing();
     pg_log.activate_not_complete(info);
   }
     
