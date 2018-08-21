@@ -1239,6 +1239,7 @@ public:
     ostream &ss);
   static void calc_replicated_acting(
     map<pg_shard_t, pg_info_t>::const_iterator auth_log_shard,
+    uint64_t force_auth_primary_missing_objects,
     unsigned size,
     const vector<int> &acting,
     pg_shard_t acting_primary,
@@ -1249,6 +1250,7 @@ public:
     vector<int> *want,
     set<pg_shard_t> *backfill,
     set<pg_shard_t> *acting_backfill,
+    const OSDMapRef osdmap,
     ostream &ss);
   void choose_async_recovery_ec(const map<pg_shard_t, pg_info_t> &all_info,
                                 const pg_info_t &auth_info,
