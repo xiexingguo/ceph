@@ -233,13 +233,25 @@ void Objecter::update_crush_location()
 int Objecter::update_qos(int res, int wgt, int lim, int bdw) {
   unique_lock wl(rwlock);
 
+  double limit_factor = cct->_conf->get_val<double>(
+    "objecter_dmc_limit_adjust_factor");
+  double bandw_factor = cct->_conf->get_val<double>(
+    "objecter_dmc_bandwidth_adjust_factor");
+
+  /* adjust limit and bandwidth, specail handling for zero */
+  int limit = lim * limit_factor;
+  limit = (limit == 0 && lim != 0) ? lim : limit;
+  int bandw = bdw * bandw_factor;
+  bandw = (bandw == 0 && bdw != 0) ? bdw : bandw;
+
   /* sanity check */
-  dmc_qos_spec new_qos(res, wgt, lim, bdw);
+  dmc_qos_spec new_qos(res, wgt, limit, bandw);
   if (!new_qos.valid()) {
     ldout(cct, 0) << " invalid QoS parameters: "
-                  << " reservation=" << res
-                  << ", weight=" << wgt << ", limit=" << lim
-                  << ", bandwidth=" << bdw << dendl;
+                  << " reservation=" << res << ", weight=" << wgt
+                  << ", limit=" << lim << ", bandwidth=" << bdw
+                  << ", lf=" << limit_factor
+                  << ", bf=" << bandw_factor << dendl;
     return -EINVAL;
   }
 
