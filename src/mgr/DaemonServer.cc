@@ -670,7 +670,11 @@ bool DaemonServer::handle_command(MCommand *m)
         con->mark_disposable();
       }
 
-      dout(1) << "handle_command " << cpp_strerror(r) << " " << rs << dendl;
+      if (r == 0) {
+        dout(4) << __func__ << " success" << dendl;
+      } else {
+        derr << __func__ << " " << cpp_strerror(r) << " " << rs << dendl;
+      }
       if (con) {
         MCommandReply *reply = new MCommandReply(r, rs);
         reply->set_tid(m->get_tid());
@@ -764,6 +768,7 @@ bool DaemonServer::handle_command(MCommand *m)
   _generate_command_map(cmdctx->cmdmap, param_str_map);
 
   bool is_allowed;
+  bool cmd_is_rw = false;
   if (!mgr_cmd) {
     MonCommand py_command = {"", "", "py", "rw", "cli"};
     is_allowed = _allowed_command(session, py_command.module,
@@ -772,23 +777,23 @@ bool DaemonServer::handle_command(MCommand *m)
     // validate user's permissions for requested command
     is_allowed = _allowed_command(session, mgr_cmd->module,
       prefix, cmdctx->cmdmap,  param_str_map, mgr_cmd);
+    cmd_is_rw = (mgr_cmd->requires_perm('w') || mgr_cmd->requires_perm('x'));
   }
   if (!is_allowed) {
-      dout(1) << " access denied" << dendl;
-      audit_clog->info() << "from='" << session->inst << "' "
-                         << "entity='" << session->entity_name << "' "
-                         << "cmd=" << m->cmd << ":  access denied";
-      ss << "access denied' does your client key have mgr caps? "
-            "See http://docs.ceph.com/docs/master/mgr/administrator/"
-            "#client-authentication";
-      cmdctx->reply(-EACCES, ss);
-      return true;
+    dout(1) << " access denied" << dendl;
+    audit_clog->info() << "from='" << session->inst << "' "
+                       << "entity='" << session->entity_name << "' "
+                       << "cmd=" << m->cmd << ":  access denied";
+    ss << "access denied' does your client key have mgr caps? "
+          "See http://docs.ceph.com/docs/master/mgr/administrator/"
+          "#client-authentication";
+    cmdctx->reply(-EACCES, ss);
+    return true;
   }
 
-  audit_clog->debug()
-    << "from='" << session->inst << "' "
-    << "entity='" << session->entity_name << "' "
-    << "cmd=" << m->cmd << ": dispatch";
+  dout(cmd_is_rw ? 0 : 5) << "from='" << session->inst << "' "
+          << "entity='" << session->entity_name << "' "
+          << "cmd=" << m->cmd << ": dispatch" << dendl;
 
   // ----------------
   // service map commands
