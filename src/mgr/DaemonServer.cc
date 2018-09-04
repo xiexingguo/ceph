@@ -653,7 +653,11 @@ bool DaemonServer::handle_command(MCommand *m)
         con->mark_disposable();
       }
 
-      dout(1) << "handle_command " << cpp_strerror(r) << " " << rs << dendl;
+      if (r == 0) {
+        dout(4) << __func__ << " success" << dendl;
+      } else {
+        derr << __func__ << " " << cpp_strerror(r) << " " << rs << dendl;
+      }
       if (con) {
         MCommandReply *reply = new MCommandReply(r, rs);
         reply->set_tid(m->get_tid());
@@ -745,6 +749,7 @@ bool DaemonServer::handle_command(MCommand *m)
   // lookup command
   const MonCommand *mgr_cmd = _get_mgrcommand(prefix, mgr_commands);
   _generate_command_map(cmdctx->cmdmap, param_str_map);
+  bool cmd_is_rw = false;
   if (!mgr_cmd) {
     MonCommand py_command = {"", "", "py", "rw", "cli"};
     if (!_allowed_command(session.get(), py_command.module, prefix, cmdctx->cmdmap,
@@ -768,12 +773,12 @@ bool DaemonServer::handle_command(MCommand *m)
       cmdctx->reply(-EACCES, ss);
       return true;
     }
+    cmd_is_rw = (mgr_cmd->requires_perm('w') || mgr_cmd->requires_perm('x'));
   }
 
-  audit_clog->debug()
-    << "from='" << session->inst << "' "
-    << "entity='" << session->entity_name << "' "
-    << "cmd=" << m->cmd << ": dispatch";
+  dout(cmd_is_rw ? 0 : 5) << "from='" << session->inst << "' "
+          << "entity='" << session->entity_name << "' "
+          << "cmd=" << m->cmd << ": dispatch" << dendl;
 
   // ----------------
   // service map commands
