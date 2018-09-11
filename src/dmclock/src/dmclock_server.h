@@ -904,6 +904,12 @@ namespace crimson {
             // avoid reqs io drop to zero caused by qos update online
             RequestTag tag(0, 0, 0, 0, time);
             temp_client->update_req_tag(tag, tick);
+
+            for (auto& r : temp_client->requests) {
+	      r.tag = RequestTag(temp_client->get_req_tag(),
+	                         temp_client->info, 1, 1, 1, time);
+	      temp_client->update_req_tag(r.tag, tick);
+	    }
           }
 	} else {
 	  ClientInfo info = client_info.valid() ?
