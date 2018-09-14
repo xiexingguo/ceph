@@ -2470,6 +2470,8 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
     if (r < 0) {
       return r;
     }
+
+    ictx->get_qos_need_to_update(&rsv, &wgt, &lmt, &bdw);
     r = ictx->operations->qos_update(rsv, wgt, lmt, bdw);
     if (r < 0) {
       return r;

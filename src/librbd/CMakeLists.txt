@@ -86,6 +86,7 @@ set(librbd_internal_srcs
   operation/FlattenRequest.cc
   operation/MetadataRemoveRequest.cc
   operation/MetadataSetRequest.cc
+  operation/QosUpdateRequest.cc
   operation/ObjectMapIterate.cc
   operation/RebuildObjectMapRequest.cc
   operation/RenameRequest.cc

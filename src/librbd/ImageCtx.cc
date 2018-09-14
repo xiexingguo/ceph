@@ -1114,6 +1114,7 @@ struct C_InvalidateCache : public Context {
     for (auto it : res) {
       std::string val(it.second.c_str(), it.second.length());
       int j = local_config_t.set_val(it.first.c_str(), val);
+      ldout(cct, 5) << __func__ << " " << it.first << "=" << val << dendl;
       if (j < 0) {
         lderr(cct) << __func__ << " failed to set config " << it.first
                    << " with value " << it.second.c_str() << ": " << j
@@ -1329,6 +1330,18 @@ struct C_InvalidateCache : public Context {
                              client_qos_bandwidth);
     }
     return 0;
+  }
+
+  void ImageCtx::get_qos_need_to_update(int *rsv,
+                                        int *wgt, int *lmt, int *bdw) {
+    assert(rsv != nullptr && wgt != nullptr &&
+           lmt != nullptr && bdw != nullptr);
+
+    // -1 means no need to update, otherwise go to update
+    *rsv = (client_qos_reservation != *rsv) ? *rsv : -1;
+    *wgt = (client_qos_weight != *wgt) ? *wgt : -1;
+    *lmt = (client_qos_limit != *lmt) ? *lmt : -1;
+    *bdw = (client_qos_bandwidth != *bdw) ? *bdw : -1;
   }
 
 }
