@@ -1114,6 +1114,7 @@ struct C_InvalidateCache : public Context {
     for (auto it : res) {
       std::string val(it.second.c_str(), it.second.length());
       int j = local_config_t.set_val(it.first.c_str(), val);
+      ldout(cct, 5) << __func__ << " " << it.first << "=" << val << dendl;
       if (j < 0) {
         lderr(cct) << __func__ << " failed to set config " << it.first
                    << " with value " << it.second.c_str() << ": " << j
