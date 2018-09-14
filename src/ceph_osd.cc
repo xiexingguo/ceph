@@ -490,12 +490,12 @@ flushjournal_out:
   ms_hb_back_server->set_cluster_protocol(CEPH_OSD_PROTOCOL);
   ms_hb_front_server->set_cluster_protocol(CEPH_OSD_PROTOCOL);
 
-  cout << "starting osd." << whoami
-       << " at " << ms_public->get_myaddr()
-       << " osd_data " << g_conf->osd_data
-       << " " << ((g_conf->osd_journal.empty()) ?
-		  "(no journal)" : g_conf->osd_journal)
-       << std::endl;
+  dout(0) << "starting osd." << whoami
+          << " at " << ms_public->get_myaddr()
+          << " osd_data " << g_conf->osd_data
+          << " " << ((g_conf->osd_journal.empty()) ?
+	   	    "(no journal)" : g_conf->osd_journal)
+          << dendl;
 
   boost::scoped_ptr<Throttle> client_byte_throttler(
     new Throttle(g_ceph_context, "osd_client_bytes",

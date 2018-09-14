@@ -3541,7 +3541,7 @@ int OSD::shutdown()
     osd_lock.Unlock();
     return 0;
   }
-  derr << "shutdown" << dendl;
+  dout(0) << "shutdown" << dendl;
 
   set_state(STATE_STOPPING);
 
