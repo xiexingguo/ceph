@@ -21,6 +21,7 @@
 #include "librbd/operation/FlattenRequest.h"
 #include "librbd/operation/MetadataRemoveRequest.h"
 #include "librbd/operation/MetadataSetRequest.h"
+#include "librbd/operation/QosUpdateRequest.h"
 #include "librbd/operation/ObjectMapIterate.h"
 #include "librbd/operation/RebuildObjectMapRequest.h"
 #include "librbd/operation/RenameRequest.h"
@@ -627,38 +628,37 @@ void Operations<I>::execute_qos_update(int rsv, int wgt, int lmt, int bdw,
          m_image_ctx.exclusive_lock->is_lock_owner());
 
   CephContext *cct = m_image_ctx.cct;
+  bool need_update = (rsv >= 0 || wgt >= 0 || lmt >= 0 || bdw >= 0);
+
   ldout(cct, 5) << this << " " << __func__ << ": reservation=" << rsv
                 << ", weight=" << wgt << ", limit=" << lmt
-                << ", bandwidth=" << bdw << dendl;
+                << ", bandwidth=" << bdw  << ", need_update=" << need_update << dendl;
 
-  if (rsv >= 0) {
-    string srsv = std::to_string(rsv);
-    auto *ctx = new FunctionContext([](int r) { return; });
-    execute_metadata_set(QOS_MRSV, srsv, ctx);
+  if (need_update) {
+    auto *request = new operation::QosSetRequest<I>(m_image_ctx,
+                                      new C_NotifyUpdate<I>(m_image_ctx, on_finish));
+    if (rsv >= 0) {
+      string srsv = std::to_string(rsv);
+      request->add_qos_keyval(QOS_MRSV, srsv);
+    }
+    if (wgt >= 0) {
+      string swgt = std::to_string(wgt);
+      request->add_qos_keyval(QOS_MWGT, swgt);
+    }
+    if (lmt >= 0) {
+      string slmt = std::to_string(lmt);
+      request->add_qos_keyval(QOS_MLMT, slmt);
+    }
+    if (bdw >= 0) {
+      string sbdw = std::to_string(bdw);
+      request->add_qos_keyval(QOS_MBDW, sbdw);
+    }
+    request->send();
+  } else {
+    ldout(cct, 5) << this << " " << __func__
+                  << " nothing to update." << dendl;
+    on_finish->complete(0);
   }
-  if (wgt >= 0) {
-    string swgt = std::to_string(wgt);
-    auto *ctx = new FunctionContext([](int r) { return; });
-    execute_metadata_set(QOS_MWGT, swgt, ctx);
-  }
-
-  if (lmt >= 0) {
-    string slmt = std::to_string(lmt);
-    auto *ctx = new FunctionContext([](int r) { return; });
-    execute_metadata_set(QOS_MLMT, slmt, ctx);
-  }
-
-  if (bdw >= 0) {
-    string sbdw = std::to_string(bdw);
-    auto *ctx = new FunctionContext([](int r) { return; });
-    execute_metadata_set(QOS_MBDW, sbdw, ctx);
-  }
-
-  auto *ctx = new FunctionContext([](int r) { return; });
-  execute_metadata_set(RBD_CACHE, "false", ctx);
-
-  C_NotifyUpdate<I> *notify = new C_NotifyUpdate<I>(m_image_ctx, on_finish);
-  notify->complete(0);
 }
 
 template <typename I>
@@ -685,25 +685,27 @@ void Operations<I>::execute_qos_remove(int flag, Context *on_finish) {
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 5) << this << " " << __func__ << ": flag=" << flag << dendl;
 
-  if (flag & QOS_FLAG_RSV) {
-    auto *ctx = new FunctionContext([](int r) { return; });
-    execute_metadata_remove(QOS_MRSV, ctx);
+  if (flag) {
+    auto *request = new operation::QosRemoveRequest<I>(m_image_ctx,
+                                      new C_NotifyUpdate<I>(m_image_ctx, on_finish));
+    if (flag & QOS_FLAG_RSV) {
+      request->add_qos_key(QOS_MRSV);
+    }
+    if (flag & QOS_FLAG_WGT) {
+      request->add_qos_key(QOS_MWGT);
+    }
+    if (flag & QOS_FLAG_LMT) {
+      request->add_qos_key(QOS_MLMT);
+    }
+    if (flag & QOS_FLAG_BDW) {
+      request->add_qos_key(QOS_MBDW);
+    }
+    request->send();
+  } else {
+    ldout(cct, 5) << this << " " << __func__
+                  << " nothing to remove." << dendl;
+    on_finish->complete(0);
   }
-  if (flag & QOS_FLAG_WGT) {
-    auto *ctx = new FunctionContext([](int r) { return; });
-    execute_metadata_remove(QOS_MWGT, ctx);
-  }
-  if (flag & QOS_FLAG_LMT) {
-    auto *ctx = new FunctionContext([](int r) { return; });
-    execute_metadata_remove(QOS_MLMT, ctx);
-  }
-  if (flag & QOS_FLAG_BDW) {
-    auto *ctx = new FunctionContext([](int r) { return; });
-    execute_metadata_remove(QOS_MBDW, ctx);
-  }
-
-  C_NotifyUpdate<I> *notify = new C_NotifyUpdate<I>(m_image_ctx, on_finish);
-  notify->complete(0);
 }
 
 

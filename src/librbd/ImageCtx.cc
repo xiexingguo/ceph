@@ -1332,4 +1332,16 @@ struct C_InvalidateCache : public Context {
     return 0;
   }
 
+  void ImageCtx::get_qos_need_to_update(int *rsv,
+                                        int *wgt, int *lmt, int *bdw) {
+    assert(rsv != nullptr && wgt != nullptr &&
+           lmt != nullptr && bdw != nullptr);
+
+    // -1 means no need to update, otherwise go to update
+    *rsv = (client_qos_reservation != *rsv) ? *rsv : -1;
+    *wgt = (client_qos_weight != *wgt) ? *wgt : -1;
+    *lmt = (client_qos_limit != *lmt) ? *lmt : -1;
+    *bdw = (client_qos_bandwidth != *bdw) ? *bdw : -1;
+  }
+
 }

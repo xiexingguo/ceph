@@ -2449,6 +2449,8 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
     if (r < 0) {
       return r;
     }
+
+    ictx->get_qos_need_to_update(&rsv, &wgt, &lmt, &bdw);
     r = ictx->operations->qos_update(rsv, wgt, lmt, bdw);
     if (r < 0) {
       return r;
