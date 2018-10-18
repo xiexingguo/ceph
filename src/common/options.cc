@@ -342,7 +342,7 @@ std::vector<Option> get_global_options() {
 
     Option("err_to_stderr", Option::TYPE_BOOL, Option::LEVEL_BASIC)
     .set_default(false)
-    .set_daemon_default(true)
+    .set_daemon_default(false)
     .set_description("send critical error log lines to stderr"),
 
     Option("log_stderr_prefix", Option::TYPE_STR, Option::LEVEL_ADVANCED)
