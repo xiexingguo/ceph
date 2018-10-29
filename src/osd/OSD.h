@@ -1694,10 +1694,11 @@ private:
       utime_t idle_from;
       int idle_interval = 0; // minimal interval we transit to idle
 
+      IdleState(double _sample_interval = 1.0)
+        : sample_interval(_sample_interval) {
+      }
+
       void maybe_update_config(md_config_t * conf) {
-        sample_interval = conf->get_val<double>("osd_tick_interval");
-        if (sample_interval <= 0)
-          sample_interval = 1;
         idle_interval = conf->get_val<int64_t>(
           "osd_load_balancer_idle_interval");
       }
@@ -1761,7 +1762,9 @@ private:
     string spec_default;
     string spec_unlimited; // be careful!
 
-    LoadBalancer(OSD *o) : osd(o) {
+    LoadBalancer(OSD *o) : osd(o),
+                           cis(o->OSD_TICK_INTERVAL),
+                           ris(o->OSD_TICK_INTERVAL) {
       maybe_update_config();
     }
 
