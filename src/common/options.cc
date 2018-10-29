@@ -6215,6 +6215,10 @@ static std::vector<Option> get_rbd_options() {
     .set_default(false)
     .set_description("create a blkin trace for all RBD requests"),
 
+    Option("rbd_perf_report_enabled", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
+    .set_default(true)
+    .set_description("true if rbd images' performance should be reported to mgr"),
+
     Option("rbd_perf_report_interval", Option::TYPE_FLOAT, Option::LEVEL_ADVANCED)
     .set_default(5.0)
     .set_description(""),
