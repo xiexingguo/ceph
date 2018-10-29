@@ -429,6 +429,9 @@ struct C_InvalidateCache : public Context {
   }
 
   void ImageCtx::perf_report_start() {
+    if (!cct->_conf->get_val<bool>("rbd_perf_report_enabled"))
+      return;
+
     ImageCtx::get_timer_instance(cct, &m_report_timer, &report_timer_lock);
 
     Mutex::Locker timer_locker(*report_timer_lock);
