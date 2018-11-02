@@ -870,12 +870,6 @@ class TestImage(object):
             metadata = list(self.image.metadata_list())
             eq(len(metadata), N - i - 1)
 
-    def test_watchers_list(self):
-        watchers = list(self.image.watchers_list())
-        # The image is open (in r/w mode) from setup, so expect there to be one
-        # watcher.
-        eq(len(watchers), 1)
-
 class TestImageId(object):
 
     def setUp(self):
