@@ -142,7 +142,7 @@ COMMAND("mgr report imgs_perf "				\
 	"name=name,type=CephString "			\
 	"name=id,type=CephString",			\
 	"report pool image perf data from clients",     \
-	"mgr", "rw", "cli,rest")
+	"mgr", "r", "cli,rest")
 
 COMMAND("mgr dump imgs_perf "				\
 	"name=dumpcontents,type=CephString,n=N,req=false",
