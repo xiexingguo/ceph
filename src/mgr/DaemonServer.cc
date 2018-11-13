@@ -1580,7 +1580,6 @@ bool DaemonServer::handle_command(MCommand *m)
    JSONFormatter f;
    f.open_array_section("pool_cache");
    for (auto &cache : pool_caches) {
-     cache.second.calculate_hit_rate();
      cache.second.dump(&f, cache.first);
    }
    f.close_section();
