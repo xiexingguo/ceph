@@ -23,6 +23,7 @@
 #include "common/likely.h"
 #include "common/Clock.h"
 #include "log/Log.h"
+#include "common/ratelimit.h"
 
 extern void dout_emergency(const char * const str);
 extern void dout_emergency(const std::string &str);
@@ -49,6 +50,8 @@ public:
 #define dout_impl(cct, sub, v)						\
   do {									\
   if (cct->_conf->subsys.should_gather(sub, v)) {			\
+    static DEFINE_RATELIMIT_STATE(__rs);                                \
+    if (v < 1 && ratelimit_check(&__rs)) { break; }                     \
     if (0) {								\
       char __array[((v >= -1) && (v <= 200)) ? 0 : -1] __attribute__((unused)); \
     }									\
