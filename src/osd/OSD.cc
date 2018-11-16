@@ -7834,6 +7834,10 @@ void OSD::_committed_osd_maps(epoch_t first, epoch_t last, MOSDMap *m)
       // set incarnation so that osd_reqid_t's we generate for our
       // objecter requests are unique across restarts.
       service.objecter->set_client_incarnation(osdmap->get_epoch());
+      // force re-sending any pending failure reports in case
+      // they might get ignored by monitor (e.g., because I was
+      // previously marked as dead)
+      requeue_failures();
     }
   }
 
