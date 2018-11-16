@@ -6238,7 +6238,7 @@ static std::vector<Option> get_rbd_options() {
     .set_description("copy-up parent image blocks to clone upon read request"),
 
     Option("rbd_blacklist_on_break_lock", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
-    .set_default(true)
+    .set_default(false)
     .set_description("whether to blacklist clients whose lock was broken"),
 
     Option("rbd_blacklist_expire_seconds", Option::TYPE_INT, Option::LEVEL_ADVANCED)
