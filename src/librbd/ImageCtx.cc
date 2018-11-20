@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <boost/assign/list_of.hpp>
 #include <stddef.h>
+#include <limits>
 
 #include "common/ceph_context.h"
 #include "common/dout.h"
@@ -204,7 +205,8 @@ struct C_InvalidateCache : public Context {
       client_qos_reservation(cct->_conf->rbd_client_qos_reservation),
       client_qos_weight(cct->_conf->rbd_client_qos_weight),
       client_qos_limit(cct->_conf->rbd_client_qos_limit),
-      client_qos_bandwidth(cct->_conf->rbd_client_qos_bandwidth)
+      client_qos_bandwidth(cct->_conf->rbd_client_qos_bandwidth),
+      m_status_update_timer_lock(util::unique_lock_name("librbd::ImageCtx::status_update_timer_lock", this))
   {
     md_ctx.dup(p);
     data_ctx.dup(p);
@@ -237,6 +239,14 @@ struct C_InvalidateCache : public Context {
 
     if (m_report_timer) {
       perf_report_stop();
+    }
+    if (m_status_update_timer) {
+      status_update_stop();
+      {
+        Mutex::Locker timer_locker(m_status_update_timer_lock);
+        m_status_update_timer->shutdown();
+      }
+      delete m_status_update_timer;
     }
     if (perfcounter) {
       perf_stop();
@@ -282,6 +292,10 @@ struct C_InvalidateCache : public Context {
     trace_endpoint.copy_name(pname);
     perf_start(pname);
     perf_report_start();
+
+    if (!m_status_update_disabled && !status_update_disabled) {
+      status_update_start();
+    }
 
     if (cache) {
       Mutex::Locker l(cache_lock);
@@ -499,6 +513,179 @@ struct C_InvalidateCache : public Context {
 
     cur_stat.sub(pre_stat);
     *rpdata = cur_stat;
+  }
+
+  void ImageCtx::disable_status_update() {
+    // w/o lock should be ok
+    m_status_update_disabled = true;
+  }
+
+  void ImageCtx::status_update_start() {
+    ldout(cct, 5) << "initializing status update..." << dendl;
+
+    if (read_only || !snap_name.empty()) {
+      return;
+    }
+
+    // check if status update disabled either by api or conf
+    if (m_status_update_disabled || status_update_disabled) {
+      return;
+    }
+
+    m_status_update_timer = new SafeTimer(cct, m_status_update_timer_lock, true);
+    m_status_update_timer->init();
+
+    // delay status_update_delay ~ 2 * status_update_delay
+    double delay = status_update_delay;
+    delay += random() % (int)(delay + 1);
+
+    Mutex::Locker timer_locker(m_status_update_timer_lock);
+    m_status_update_callback = new FunctionContext([this](int r){
+      this->status_update();
+    });
+    m_status_update_timer->add_event_after(delay, m_status_update_callback);
+  }
+
+  void ImageCtx::status_update_stop() {
+    Mutex::Locker locker(m_status_update_timer_lock);
+    if (m_status_update_callback) {
+      m_status_update_timer->cancel_event(m_status_update_callback);
+    }
+    m_status_update_callback = nullptr;
+    m_status_update_disabled = true;
+  }
+
+  void ImageCtx::status_update() {
+    assert(m_status_update_timer_lock.is_locked_by_me());
+
+    if (m_status_update_disabled || status_update_disabled) {
+      return;
+    }
+
+    ldout(cct, 10) << "status update timer ticking..." << dendl;
+
+    if (!is_paused_by_qos()) {
+      // so we will not be stuck in librados
+
+      uint64_t used = kInvalidSize;
+      BitVector<2> om;
+      int r = -1;
+      {
+        RWLock::RLocker snap_locker(snap_lock);
+        RWLock::RLocker object_map_locker(object_map_lock);
+        if (object_map != nullptr) {
+          r = object_map->get_object_map(&om);
+          ldout(cct, 10) << "status update get_object_map: " << r << dendl;
+        }
+      }
+
+      if (r == 0) {
+        ObjectMap<>::ObjectMap::calculate_usage(*this, om, &used, nullptr);
+      }
+
+      // if we are closing, stop it now
+      if (m_status_update_disabled) {
+        ldout(cct, 5) << "image closing, skip status update..." << dendl;
+        return;
+      }
+
+      //
+      // check if we should send this update to osd
+      //
+      bool to_update = false;
+
+      if (!m_status_update_started) {
+        // the first time, we need to update the image state
+        m_status_update_started = true;
+
+        ldout(cct, 5) << "initial status update..." << dendl;
+
+        to_update = true;
+      }
+
+      if (!to_update) {
+        double interval = status_update_interval;
+        uint64_t max_count = status_update_skip_max_count;
+
+        utime_t last_time = m_status_update_last_time;
+        utime_t delay = ceph_clock_now();
+        delay -= last_time;
+        double max_delay = interval * std::max(uint64_t(1), max_count);
+        if (double(delay) > max_delay) {
+          ldout(cct, 10) << "status update deadline ("
+                         << double(delay) << "s > "
+                         << max_delay << "s) reached..." << dendl;
+
+          to_update = true;
+        }
+      }
+
+      if (!to_update && used != kInvalidSize) {
+        uint64_t last_used = m_status_update_last_used;
+        double skip_delta_ratio = status_update_skip_delta_ratio;
+
+        uint64_t delta = 0;
+        if (used >= last_used) {
+          delta = used - last_used;
+        } else {
+          // maybe trimmed
+          delta = last_used - used;
+        }
+        if (delta > size * skip_delta_ratio) {
+          double delta_ratio = (double)delta / size;
+          ldout(cct, 10) << "status update delta ratio ("
+                         << delta_ratio << " > "
+                         << skip_delta_ratio << ") reached..." << dendl;
+
+          to_update = true;
+        }
+      }
+
+      if (to_update) {
+        string str = "";
+        if (used != kInvalidSize) {
+          ostringstream ss;
+          ss << " (" << used << ")";
+          str = ss.str();
+        }
+        ldout(cct, 10) << "status updating" << str << "..." << dendl;
+
+        m_status_update_last_time = ceph_clock_now();
+        m_status_update_last_used = used;
+
+        librados::ObjectWriteOperation op;
+        cls_client::status_update_used(&op, id, used);
+        using klass = ImageCtx;
+        librados::AioCompletion *comp =
+            util::create_rados_callback<klass, &klass::handle_status_update>(this);
+        r = md_ctx.aio_operate(RBD_STATUS, comp, &op);
+        assert(r == 0);
+        comp->release();
+      } else {
+        ldout(cct, 10) << "status update skipping..." << dendl;
+      }
+    }
+
+    // interval ~ 2 * interval
+    double interval = status_update_interval;
+    interval += random() % (int)(interval + 1);
+
+    ldout(cct, 10) << "status update timer next tick scheduled after "
+                   << interval << "s..." << dendl;
+
+    m_status_update_callback = new FunctionContext([this](int r){
+      this->status_update();
+    });
+    m_status_update_timer->add_event_after(interval, m_status_update_callback);
+  }
+
+  void ImageCtx::handle_status_update(int r) {
+    if (r < 0 && r != -EOPNOTSUPP && r != -ENOENT) {
+      lderr(cct) << "failed to update image_status: "
+          << cpp_strerror(r) << dendl;
+    } else {
+      ldout(cct, 10) << "status update finished: " << r << dendl;
+    }
   }
 
   void ImageCtx::set_read_flag(unsigned flag) {
@@ -1105,7 +1292,12 @@ struct C_InvalidateCache : public Context {
         "rbd_client_qos_reservation", false)(
         "rbd_client_qos_weight", false)(
         "rbd_client_qos_limit", false)(
-        "rbd_client_qos_bandwidth", false);
+        "rbd_client_qos_bandwidth", false)(
+        "rbd_status_update_disabled", false)(
+        "rbd_status_update_delay", false)(
+        "rbd_status_update_interval", false)(
+        "rbd_status_update_skip_delta_ratio", false)(
+        "rbd_status_update_skip_max_count", false);
 
     md_config_t local_config_t;
     std::map<std::string, bufferlist> res;
@@ -1179,6 +1371,11 @@ struct C_InvalidateCache : public Context {
     ASSIGN_OPTION(client_qos_weight, int64_t);
     ASSIGN_OPTION(client_qos_limit, int64_t);
     ASSIGN_OPTION(client_qos_bandwidth, int64_t);
+    ASSIGN_OPTION(status_update_disabled, bool);
+    ASSIGN_OPTION(status_update_delay, double);
+    ASSIGN_OPTION(status_update_interval, double);
+    ASSIGN_OPTION(status_update_skip_delta_ratio, double);
+    ASSIGN_OPTION(status_update_skip_max_count, int64_t);
 
   }
 

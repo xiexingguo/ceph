@@ -142,6 +142,9 @@ private:
   void send_post_block_writes();
   Context *handle_post_block_writes(int *result);
 
+  void send_status_update_size();
+  Context *handle_status_update_size(int *result);
+
   void send_update_header();
   Context *handle_update_header(int *result);
 

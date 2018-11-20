@@ -6285,6 +6285,26 @@ static std::vector<Option> get_rbd_options() {
     .set_default(5.0)
     .set_description(""),
 
+    Option("rbd_status_update_disabled", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
+    .set_default(false)
+    .set_description("true if rbd image status update should be disabled"),
+
+    Option("rbd_status_update_delay", Option::TYPE_FLOAT, Option::LEVEL_ADVANCED)
+    .set_default(30.0)
+    .set_description("delay a few seconds for the first update"),
+
+    Option("rbd_status_update_interval", Option::TYPE_FLOAT, Option::LEVEL_ADVANCED)
+    .set_default(60.0 * 15)
+    .set_description(""),
+
+    Option("rbd_status_update_skip_delta_ratio", Option::TYPE_FLOAT, Option::LEVEL_ADVANCED)
+    .set_default(0.01)
+    .set_description(""),
+
+    Option("rbd_status_update_skip_max_count", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    .set_default(96)
+    .set_description(""),
+
     Option("rbd_validate_pool", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
     .set_default(false)
     .set_description("validate empty pools for RBD compatibility"),

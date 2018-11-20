@@ -100,6 +100,58 @@ namespace librbd {
     bool trash;
   } child_info_t;
 
+  typedef rbd_status_image_state_t status_image_state_t;
+  typedef rbd_status_snapshot_namespace_type_t status_snapshot_namespace_type_t;
+
+  typedef struct {
+    int64_t pool_id;
+    std::string image_id;
+  } status_clone_id_t;
+
+  typedef struct {
+    int64_t pool_id;
+    std::string image_id;
+    uint64_t snapshot_id;
+  } status_parent_id_t;
+
+  typedef struct {
+    time_t create_timestamp;
+    status_snapshot_namespace_type_t namespace_type;
+    std::string name;
+    std::string image_id;
+    uint64_t id;
+    uint64_t size;
+    uint64_t used;
+    uint64_t dirty;
+    std::vector<status_clone_id_t> clone_ids;
+  } status_snapshot_t;
+
+  typedef struct {
+    uint64_t state;
+    time_t create_timestamp;
+    status_parent_id_t parent;
+    int64_t data_pool_id;
+    std::string name;
+    std::string id;
+    uint8_t order;
+    uint64_t stripe_unit;
+    uint64_t stripe_count;
+    uint64_t size;
+    uint64_t used;
+    int64_t qos_iops;
+    int64_t qos_bps;
+    int64_t qos_reservation;
+    int64_t qos_weight;
+    std::vector<uint64_t> snapshot_ids;
+  } status_image_t;
+
+  typedef struct {
+    uint64_t state;
+    uint64_t size;
+    uint64_t used;
+    std::string id;
+  } status_usage_t;
+
 class CEPH_RBD_API RBD
 {
 public:
@@ -184,6 +236,15 @@ public:
       size_t max, std::map<std::string, mirror_image_status_t> *images);
   int mirror_image_status_summary(IoCtx& io_ctx,
       std::map<mirror_image_status_state_t, int> *states);
+
+  int status_get_version(IoCtx &io_ctx, uint64_t *version);
+  int status_inc_version(IoCtx &io_ctx, uint64_t version);
+  int status_list_images(IoCtx &io_ctx, const std::string &start, size_t max,
+      std::vector<status_image_t> *images);
+  int status_list_snapshots(IoCtx &io_ctx, uint64_t start, size_t max,
+      std::vector<status_snapshot_t> *snapshots);
+  int status_list_usages(IoCtx &io_ctx, const std::string &start, size_t max,
+      std::vector<status_usage_t> *usages);
 
 private:
   /* We don't allow assignment or copying */
@@ -459,6 +520,8 @@ public:
   int qos_spec_del();
 
   void notify_update();
+  int status_get_usage(status_usage_t *usage);
+  void disable_status_update();
 
 private:
   friend class RBD;

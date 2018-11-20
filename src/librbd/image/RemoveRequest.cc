@@ -42,6 +42,8 @@ RemoveRequest<I>::RemoveRequest(IoCtx &ioctx, const std::string &image_name,
 
   m_image_ctx = I::create((m_image_id.empty() ? m_image_name : std::string()),
                           m_image_id, nullptr, m_ioctx, false);
+
+  m_image_ctx->disable_status_update();
 }
 
 template<typename I>
@@ -401,6 +403,81 @@ void RemoveRequest<I>::handle_remove_child(int r) {
     return;
   }
 
+  send_status_remove_child();
+}
+
+template<typename I>
+void RemoveRequest<I>::send_status_remove_child() {
+  ldout(m_cct, 20) << dendl;
+
+  m_image_ctx->parent_lock.get_read();
+  ParentSpec parent_spec = m_image_ctx->parent_md.spec;
+  m_image_ctx->parent_lock.put_read();
+
+  if (parent_spec.pool_id < 0) {
+    send_status_remove_image();
+    return;
+  }
+
+  librados::Rados rados(m_image_ctx->md_ctx);
+  int r = rados.ioctx_create2(parent_spec.pool_id, m_parent_ioctx);
+  assert(r == 0);
+
+  cls::rbd::StatusParentId parent;
+  parent.pool_id = parent_spec.pool_id;
+  parent.image_id = parent_spec.image_id;
+  parent.snapshot_id = parent_spec.snap_id;
+
+  librados::ObjectWriteOperation op;
+  librbd::cls_client::status_remove_child(&op, parent, m_ioctx.get_id(), m_image_id);
+
+  using klass = RemoveRequest<I>;
+  librados::AioCompletion *rados_completion =
+    create_rados_callback<klass, &klass::handle_status_remove_child>(this);
+  r = m_parent_ioctx.aio_operate(RBD_STATUS, rados_completion, &op);
+  assert(r == 0);
+  rados_completion->release();
+}
+
+template<typename I>
+void RemoveRequest<I>::handle_status_remove_child(int r) {
+  ldout(m_cct, 20) << "r=" << r << dendl;
+
+  if (r < 0 && r != -EOPNOTSUPP && r != -ENOENT) {
+    lderr(m_cct) << "error removing child from status: " << cpp_strerror(r)
+                 << dendl;
+    send_close_image(r);;
+    return;
+  }
+
+  send_status_remove_image();
+}
+
+template<typename I>
+void RemoveRequest<I>::send_status_remove_image() {
+  ldout(m_cct, 20) << dendl;
+
+  librados::ObjectWriteOperation op;
+  librbd::cls_client::status_remove_image(&op, m_image_id);
+
+  using klass = RemoveRequest<I>;
+  librados::AioCompletion *rados_completion =
+    create_rados_callback<klass, &klass::handle_status_remove_image>(this);
+  int r = m_ioctx.aio_operate(RBD_STATUS, rados_completion, &op);
+  assert(r == 0);
+  rados_completion->release();
+}
+
+template<typename I>
+void RemoveRequest<I>::handle_status_remove_image(int r) {
+  ldout(m_cct, 20) << "r=" << r << dendl;
+
+  if (r < 0 && r != -EOPNOTSUPP && r != -ENOENT) {
+    lderr(m_cct) << "error removing status image: " << cpp_strerror(r)
+                 << dendl;
+    send_close_image(r);
+    return;
+  }
 
   send_disable_mirror();
 }

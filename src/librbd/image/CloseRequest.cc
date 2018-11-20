@@ -21,6 +21,7 @@ namespace image {
 
 using util::create_async_context_callback;
 using util::create_context_callback;
+using util::create_rados_callback;
 
 template <typename I>
 CloseRequest<I>::CloseRequest(I *image_ctx, Context *on_finish)
@@ -75,6 +76,44 @@ void CloseRequest<I>::handle_shut_down_update_watchers(int r) {
   save_result(r);
   if (r < 0) {
     lderr(cct) << "failed to shut down update watchers: " << cpp_strerror(r)
+               << dendl;
+  }
+
+  if (m_image_ctx->m_status_update_started) {
+    send_status_update_shutdown();
+  } else {
+    send_shut_down_io_queue();
+  }
+}
+
+template <typename I>
+void CloseRequest<I>::send_status_update_shutdown() {
+  CephContext *cct = m_image_ctx->cct;
+  ldout(cct, 10) << this << " " << __func__ << dendl;
+
+  librados::ObjectWriteOperation op;
+  cls_client::status_update_state(&op, m_image_ctx->id,
+      static_cast<uint64_t>(cls::rbd::STATUS_IMAGE_STATE_IDLE),
+      static_cast<uint64_t>(cls::rbd::STATUS_IMAGE_STATE_MASK));
+
+  using klass = CloseRequest<I>;
+  librados::AioCompletion *comp =
+    create_rados_callback<klass, &klass::handle_status_update_shutdown>(this);
+  int r = m_image_ctx->md_ctx.aio_operate(RBD_STATUS, comp, &op);
+  assert(r == 0);
+  comp->release();
+}
+
+template <typename I>
+void CloseRequest<I>::handle_status_update_shutdown(int r) {
+  CephContext *cct = m_image_ctx->cct;
+  ldout(cct, 10) << this << " " << __func__ << ": r=" << r << dendl;
+
+  if (r != -EOPNOTSUPP && r != -ENOENT) {
+    save_result(r);
+  }
+  if (r < 0 && r != -EOPNOTSUPP && r != -ENOENT) {
+    lderr(cct) << "failed to shut down status update: " << cpp_strerror(r)
                << dendl;
   }
 

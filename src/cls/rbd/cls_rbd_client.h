@@ -439,6 +439,63 @@ namespace librbd {
                         const cls::rbd::TrashImageState &trash_state,
                         const cls::rbd::TrashImageState &expect_state);
 
+    int status_get_version(librados::IoCtx *ioctx, const std::string &oid,
+        uint64_t *version);
+    int status_inc_version(librados::IoCtx *ioctx, const std::string &oid,
+        uint64_t version);
+    int status_list_images(librados::IoCtx *ioctx, const std::string &oid,
+        const std::string &start, uint64_t max_return,
+        std::vector<cls::rbd::StatusImage> *statuses);
+    int status_list_snapshots(librados::IoCtx *ioctx, const std::string &oid,
+        uint64_t start, uint64_t max_return,
+        std::vector<cls::rbd::StatusSnapshot> *snapshots);
+    int status_list_usages(librados::IoCtx *ioctx, const std::string &oid,
+        const std::string &start, uint64_t max_return,
+        std::vector<cls::rbd::StatusUsage> *usages);
+    void status_add_image(librados::ObjectWriteOperation *op,
+        cls::rbd::StatusParentId &pid,
+        const std::string &id,
+        int64_t data_pool_id,
+        const std::string &name, uint8_t order,
+        uint64_t stripe_unit, uint64_t stripe_count, uint64_t size);
+    void status_remove_image(librados::ObjectWriteOperation *op,
+        const std::string &id);
+    void status_rename_image(librados::ObjectWriteOperation *op,
+        const std::string &id, const std::string &name);
+    void status_flatten_clone(librados::ObjectWriteOperation *op,
+        const std::string &id);
+    void status_add_child(librados::ObjectWriteOperation *op,
+        cls::rbd::StatusParentId &pid,
+        int64_t pool_id,
+        const std::string &id);
+    void status_remove_child(librados::ObjectWriteOperation *op,
+        cls::rbd::StatusParentId &pid,
+        int64_t pool_id,
+        const std::string &id);
+    void status_update_size(librados::ObjectWriteOperation *op,
+        const std::string &id, uint64_t size);
+    void status_update_state(librados::ObjectWriteOperation *op,
+        const std::string &id, uint64_t state, uint64_t mask);
+    void status_update_used(librados::ObjectWriteOperation *op,
+        const std::string &id, uint64_t used);
+    void status_add_snapshot(librados::ObjectWriteOperation *op,
+        const std::string &image_id, uint64_t snap_id,
+        const std::string &snap_name,
+        const cls::rbd::SnapshotNamespace &snap_namespace,
+        uint64_t size,
+        uint64_t used,
+        uint64_t dirty);
+    void status_remove_snapshot(librados::ObjectWriteOperation *op,
+        const std::string &image_id, uint64_t snap_id);
+    void status_rename_snapshot(librados::ObjectWriteOperation *op,
+        uint64_t snap_id, const std::string &snap_name);
+    void status_update_qos(librados::ObjectWriteOperation *op,
+        const std::string &image_id, int64_t iops, int64_t bps,
+        int64_t reservation, int64_t weight);
+    int status_get_usage(librados::IoCtx *ioctx, const std::string &oid,
+        const std::string &id, uint64_t snapshot_id,
+        cls::rbd::StatusUsage *usage);
+
   } // namespace cls_client
 } // namespace librbd
 #endif // CEPH_LIBRBD_CLS_RBD_CLIENT_H

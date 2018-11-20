@@ -103,6 +103,7 @@ private:
                 ProgressContext &prog_ctx, ContextWQ *op_work_queue,
                 Context *on_finish);
 
+  librados::IoCtx m_parent_ioctx;
   librados::IoCtx &m_ioctx;
   std::string m_image_name;
   std::string m_image_id;
@@ -165,6 +166,12 @@ private:
 
   void remove_child();
   void handle_remove_child(int r);
+
+  void send_status_remove_child();
+  void handle_status_remove_child(int r);
+
+  void send_status_remove_image();
+  void handle_status_remove_image(int r);
 
   void send_disable_mirror();
   void handle_disable_mirror(int r);

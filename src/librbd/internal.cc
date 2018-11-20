@@ -1491,6 +1491,23 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
       // continue with removing image from directory
     }
 
+    ldout(cct, 2) << "updating status image..." << dendl;
+    uint64_t state = static_cast<uint64_t>(cls::rbd::STATUS_IMAGE_STATE_TRASH);
+    uint64_t mask = static_cast<uint64_t>(cls::rbd::STATUS_IMAGE_STATE_TRASH);
+    librados::ObjectWriteOperation op;
+    cls_client::status_update_state(&op, image_id, state, mask);
+    r = io_ctx.operate(RBD_STATUS, &op);
+    if (r < 0 && r != -EOPNOTSUPP && r != -ENOENT) {
+      lderr(cct) << "error updating status image: " << image_id << ": "
+                 << cpp_strerror(r) << dendl;
+      int r2 = cls_client::trash_remove(&io_ctx, image_id);
+      if (r2 < 0 && r2 != -ENOENT) {
+        lderr(cct) << "error removing image id: " << image_id << " from trash: "
+                   << cpp_strerror(r2) << dendl;
+      }
+      return r;
+    }
+
     ldout(cct, 2) << "removing id object..." << dendl;
     r = io_ctx.remove(util::id_obj_name(image_name));
     if (r < 0 && r != -ENOENT) {
@@ -1721,6 +1738,29 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
     r = enable_mirroring(io_ctx, image_id);
     if (r < 0) {
       // not fatal -- ignore
+    }
+
+    ldout(cct, 2) << "updating status image..." << dendl;
+    if (!image_new_name.empty()) {
+      librados::ObjectWriteOperation op1;
+      cls_client::status_rename_image(&op1, image_id, image_name);
+      r = io_ctx.operate(RBD_STATUS, &op1);
+      if (r < 0 && r != -EOPNOTSUPP && r != -ENOENT) {
+        lderr(cct) << "error updating status image: " << image_id << " name: "
+                   << cpp_strerror(r) << dendl;
+        return r;
+      }
+    }
+
+    uint64_t state = 0;
+    uint64_t mask = static_cast<uint64_t>(cls::rbd::STATUS_IMAGE_STATE_TRASH);
+    librados::ObjectWriteOperation op2;
+    cls_client::status_update_state(&op2, image_id, state, mask);
+    r = io_ctx.operate(RBD_STATUS, &op2);
+    if (r < 0 && r != -EOPNOTSUPP && r != -ENOENT) {
+      lderr(cct) << "error updating status image :" << image_id << " state: "
+                 << cpp_strerror(r) << dendl;
+      return r;
     }
 
     ldout(cct, 2) << "removing image from trash..." << dendl;

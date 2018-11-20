@@ -74,6 +74,14 @@ bool FlattenRequest<I>::should_complete(int r) {
   I &image_ctx = this->m_image_ctx;
   CephContext *cct = image_ctx.cct;
   ldout(cct, 5) << this << " should_complete: " << " r=" << r << dendl;
+
+  if (m_state == STATE_STATUS_REMOVE_PARENT ||
+      m_state == STATE_STATUS_REMOVE_CHILD) {
+    if (r == -EOPNOTSUPP || r == -ENOENT) {
+      r = 0;
+    }
+  }
+
   if (r == -ERESTART) {
     ldout(cct, 5) << "flatten operation interrupted" << dendl;
     return true;
@@ -86,6 +94,14 @@ bool FlattenRequest<I>::should_complete(int r) {
   switch (m_state) {
   case STATE_FLATTEN_OBJECTS:
     ldout(cct, 5) << "FLATTEN_OBJECTS" << dendl;
+    return send_status_remove_parent();
+
+  case STATE_STATUS_REMOVE_PARENT:
+    ldout(cct, 5) << "STATUS_REMOVE_PARENT" << dendl;
+    return send_status_remove_child();
+
+  case STATE_STATUS_REMOVE_CHILD:
+    ldout(cct, 5) << "STATUS_REMOVE_CHILD" << dendl;
     return send_update_header();
 
   case STATE_UPDATE_HEADER:
@@ -120,6 +136,83 @@ void FlattenRequest<I>::send_op() {
     this, image_ctx, context_factory, this->create_callback_context(), &m_prog_ctx,
     0, m_overlap_objects);
   throttle->start_ops(image_ctx.concurrent_management_ops);
+}
+
+template <typename I>
+bool FlattenRequest<I>::send_status_remove_parent() {
+  I &image_ctx = this->m_image_ctx;
+  assert(image_ctx.owner_lock.is_locked());
+  CephContext *cct = image_ctx.cct;
+
+  ldout(cct, 5) << this << " send_status_remove_parent" << dendl;
+  m_state = STATE_STATUS_REMOVE_PARENT;
+
+  // should have been canceled prior to releasing lock
+  assert(image_ctx.exclusive_lock == nullptr ||
+         image_ctx.exclusive_lock->is_lock_owner());
+
+  {
+    RWLock::RLocker parent_locker(image_ctx.parent_lock);
+    // stop early if the parent went away - it just means
+    // another flatten finished first, so this one is useless.
+    if (!image_ctx.parent) {
+      ldout(cct, 5) << "image already flattened" << dendl;
+      return true;
+    }
+  }
+
+  // remove parent from this (base) image
+  librados::ObjectWriteOperation op;
+  cls_client::status_flatten_clone(&op, image_ctx.id);
+
+  librados::AioCompletion *rados_completion = this->create_callback_completion();
+  int r = image_ctx.md_ctx.aio_operate(RBD_STATUS, rados_completion, &op);
+  assert(r == 0);
+  rados_completion->release();
+  return false;
+}
+
+template <typename I>
+bool FlattenRequest<I>::send_status_remove_child() {
+  I &image_ctx = this->m_image_ctx;
+  assert(image_ctx.owner_lock.is_locked());
+  CephContext *cct = image_ctx.cct;
+
+  ldout(cct, 5) << this << " send_status_remove_child" << dendl;
+  m_state = STATE_STATUS_REMOVE_CHILD;
+
+  // should have been canceled prior to releasing lock
+  assert(image_ctx.exclusive_lock == nullptr ||
+         image_ctx.exclusive_lock->is_lock_owner());
+
+  {
+    RWLock::RLocker parent_locker(image_ctx.parent_lock);
+    // stop early if the parent went away - it just means
+    // another flatten finished first, so this one is useless.
+    if (!image_ctx.parent) {
+      ldout(cct, 5) << "image already flattened" << dendl;
+      return true;
+    }
+    m_parent_spec = image_ctx.parent_md.spec;
+  }
+
+  librados::Rados rados(image_ctx.md_ctx);
+  int r = rados.ioctx_create2(m_parent_spec.pool_id, m_parent_ioctx);
+  assert(r == 0);
+
+  cls::rbd::StatusParentId parent;
+  parent.pool_id = m_parent_spec.pool_id;
+  parent.image_id = m_parent_spec.image_id;
+  parent.snapshot_id = m_parent_spec.snap_id;
+
+  librados::ObjectWriteOperation op;
+  cls_client::status_remove_child(&op, parent, image_ctx.md_ctx.get_id(), image_ctx.id);
+
+  librados::AioCompletion *rados_completion = this->create_callback_completion();
+  r = m_parent_ioctx.aio_operate(RBD_STATUS, rados_completion, &op);
+  assert(r == 0);
+  rados_completion->release();
+  return false;
 }
 
 template <typename I>

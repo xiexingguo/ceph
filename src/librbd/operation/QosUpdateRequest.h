@@ -33,8 +33,14 @@ protected:
   }
 
 private:
+  enum State {
+    STATE_STATUS_UPDATE,
+    STATE_UPDATE_METADATA
+  };
+  State m_state;
   std::map<std::string, bufferlist> m_data;
 
+  void send_status_update();
   void send_qos_set();
 };
 
@@ -53,8 +59,14 @@ protected:
   }
 
 private:
+  enum State {
+    STATE_STATUS_UPDATE,
+    STATE_UPDATE_METADATA
+  };
+  State m_state;
   std::set<std::string> m_data;
 
+  void send_status_update();
   void send_qos_remove();
 };
 

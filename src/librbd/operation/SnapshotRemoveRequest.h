@@ -49,6 +49,7 @@ public:
    * The _REMOVE_CHILD state is skipped if the parent is still in-use.
    */
   enum State {
+    STATE_STATUS_REMOVE_SNAPSHOT,
     STATE_REMOVE_OBJECT_MAP,
     STATE_REMOVE_CHILD,
     STATE_REMOVE_SNAP,
@@ -82,6 +83,7 @@ private:
     return r;
   }
 
+  void send_status_remove_snapshot();
   void send_remove_object_map();
   void send_remove_child();
   void send_remove_snap();

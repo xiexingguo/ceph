@@ -685,6 +685,37 @@ namespace librbd {
     return librbd::api::Mirror<>::image_status_summary(io_ctx, states);
   }
 
+  int RBD::status_get_version(IoCtx &io_ctx, uint64_t *version)
+  {
+    return librbd::api::Image<>::status_get_version(io_ctx, version);
+  }
+
+  int RBD::status_inc_version(IoCtx &io_ctx, uint64_t version)
+  {
+    return librbd::api::Image<>::status_inc_version(io_ctx, version);
+  }
+
+  int RBD::status_list_images(IoCtx &io_ctx, const std::string &start,
+      size_t max, std::vector<status_image_t> *images)
+  {
+    return librbd::api::Image<>::status_list_images(io_ctx,
+        start, max, images);
+  }
+
+  int RBD::status_list_snapshots(IoCtx &io_ctx, uint64_t start, size_t max,
+      std::vector<status_snapshot_t> *snapshots)
+  {
+    return librbd::api::Image<>::status_list_snapshots(io_ctx,
+        start, max, snapshots);
+  }
+
+  int RBD::status_list_usages(IoCtx &io_ctx, const std::string &start,
+      size_t max, std::vector<status_usage_t> *usages)
+  {
+    return librbd::api::Image<>::status_list_usages(io_ctx,
+        start, max, usages);
+  }
+
   RBD::AioCompletion::AioCompletion(void *cb_arg, callback_t complete_cb)
   {
     pc = reinterpret_cast<void*>(librbd::io::AioCompletion::create(
@@ -1950,6 +1981,18 @@ namespace librbd {
   {
     ImageCtx *ictx = (ImageCtx *)ctx;
     ictx->notify_update();
+  }
+
+  int Image::status_get_usage(status_usage_t *usage)
+  {
+    ImageCtx *ictx = (ImageCtx *)ctx;
+    return librbd::api::Image<>::status_get_usage(ictx, usage);
+  }
+
+  void Image::disable_status_update()
+  {
+    ImageCtx *ictx = (ImageCtx *)ctx;
+    ictx->disable_status_update();
   }
 
 } // namespace librbd
@@ -4327,4 +4370,233 @@ extern "C" void rbd_notify_update(rbd_image_t image)
   librbd::ImageCtx *ictx = (librbd::ImageCtx *)image;
 
   ictx->notify_update();
+}
+
+extern "C"  int rbd_status_get_version(rados_ioctx_t p, uint64_t *version)
+{
+  librados::IoCtx io_ctx;
+  librados::IoCtx::from_rados_ioctx_t(p, io_ctx);
+  int r = librbd::api::Image<>::status_get_version(io_ctx, version);
+  if (r < 0) {
+    return r;
+  }
+  return 0;
+}
+
+extern "C"  int rbd_status_inc_version(rados_ioctx_t p, uint64_t version)
+{
+  librados::IoCtx io_ctx;
+  librados::IoCtx::from_rados_ioctx_t(p, io_ctx);
+  int r = librbd::api::Image<>::status_inc_version(io_ctx, version);
+  if (r < 0) {
+    return r;
+  }
+  return 0;
+}
+
+extern "C"  int rbd_status_list_images(rados_ioctx_t p,
+    const char *start, size_t max,
+    rbd_status_image_t *c_images, size_t *size)
+{
+  librados::IoCtx io_ctx;
+  librados::IoCtx::from_rados_ioctx_t(p, io_ctx);
+  vector<librbd::status_image_t> cpp_images;
+  int r = librbd::api::Image<>::status_list_images(io_ctx, start, max,
+      &cpp_images);
+  if (r < 0) {
+    return r;
+  }
+
+  if (!c_images) {
+    return -EINVAL;
+  }
+
+  for (size_t i = 0; i < (size_t)cpp_images.size(); i++) {
+    assert(i < max);
+
+    const auto &cpp_image = cpp_images[i];
+    auto &c_image = c_images[i];
+
+    c_image.state = cpp_image.state;
+    c_image.create_timestamp = cpp_image.create_timestamp;
+    c_image.parent.pool_id = cpp_image.parent.pool_id;
+    c_image.parent.image_id = strdup(cpp_image.parent.image_id.c_str());
+    c_image.parent.snapshot_id = cpp_image.parent.snapshot_id;
+    c_image.data_pool_id = cpp_image.data_pool_id;
+    c_image.name = strdup(cpp_image.name.c_str());
+    c_image.id = strdup(cpp_image.id.c_str());
+    c_image.order = cpp_image.order;
+    c_image.stripe_unit = cpp_image.stripe_unit;
+    c_image.stripe_count = cpp_image.stripe_count;
+    c_image.size = cpp_image.size;
+    c_image.used = cpp_image.used;
+    c_image.qos_iops = cpp_image.qos_iops;
+    c_image.qos_bps = cpp_image.qos_bps;
+    c_image.qos_reservation = cpp_image.qos_reservation;
+    c_image.qos_weight = cpp_image.qos_weight;
+    c_image.snapshots_count = (uint64_t)cpp_image.snapshot_ids.size();
+    c_image.snapshot_ids = NULL;
+    if (c_image.snapshots_count > 0) {
+      c_image.snapshot_ids = (uint64_t *)malloc(
+          sizeof(uint64_t) * c_image.snapshots_count);
+
+      for (size_t j = 0; j < (size_t)c_image.snapshots_count; j++) {
+        c_image.snapshot_ids[j] = cpp_image.snapshot_ids[j];
+      }
+    }
+  }
+
+  *size = cpp_images.size();
+  return 0;
+}
+
+extern "C"  void rbd_status_list_images_cleanup(rbd_status_image_t *statuses,
+    size_t size)
+{
+  for (size_t i = 0; i < size; i++) {
+    auto &status = statuses[i];
+
+    free(status.parent.image_id);
+    free(status.name);
+    free(status.id);
+    free(status.snapshot_ids);
+  }
+}
+
+extern "C"  int rbd_status_list_snapshots(rados_ioctx_t p,
+    uint64_t start, size_t max,
+    rbd_status_snapshot_t *c_snapshots, size_t *size)
+{
+  librados::IoCtx io_ctx;
+  librados::IoCtx::from_rados_ioctx_t(p, io_ctx);
+  vector<librbd::status_snapshot_t> cpp_snapshots;
+  int r = librbd::api::Image<>::status_list_snapshots(io_ctx, start, max,
+      &cpp_snapshots);
+  if (r < 0) {
+    return r;
+  }
+
+  if (!c_snapshots) {
+    return -EINVAL;
+  }
+
+  for (size_t i = 0; i < (size_t)cpp_snapshots.size(); i++) {
+    assert(i < max);
+
+    const auto &cpp_snapshot = cpp_snapshots[i];
+    auto &c_snapshot = c_snapshots[i];
+
+    c_snapshot.create_timestamp = cpp_snapshot.create_timestamp;
+    c_snapshot.namespace_type = cpp_snapshot.namespace_type;
+    c_snapshot.name = strdup(cpp_snapshot.name.c_str());
+    c_snapshot.image_id = strdup(cpp_snapshot.image_id.c_str());
+    c_snapshot.id = cpp_snapshot.id;
+    c_snapshot.size = cpp_snapshot.size;
+    c_snapshot.used = cpp_snapshot.used;
+    c_snapshot.dirty = cpp_snapshot.dirty;
+    c_snapshot.clones_count = (uint64_t)cpp_snapshot.clone_ids.size();
+    c_snapshot.clone_ids = NULL;
+
+    if (c_snapshot.clones_count > 0) {
+      c_snapshot.clone_ids = (rbd_status_clone_id_t *)malloc(
+          sizeof(rbd_status_clone_id_t) * c_snapshot.clones_count);
+
+      for (size_t j = 0; j < (size_t)c_snapshot.clones_count; j++) {
+        c_snapshot.clone_ids[j].pool_id = cpp_snapshot.clone_ids[j].pool_id;
+        c_snapshot.clone_ids[j].image_id = strdup(cpp_snapshot.clone_ids[j].image_id.c_str());
+      }
+    }
+  }
+
+  *size = cpp_snapshots.size();
+  return 0;
+}
+
+extern "C"  void rbd_status_list_snapshots_cleanup(rbd_status_snapshot_t *snapshots,
+    size_t size)
+{
+  for (size_t i = 0; i < size; i++) {
+    auto &snapshot = snapshots[i];
+
+    free(snapshot.name);
+    free(snapshot.image_id);
+
+    for (size_t j = 0; j < (size_t)snapshot.clones_count; j++) {
+      free(snapshot.clone_ids[j].image_id);
+    }
+
+    free(snapshot.clone_ids);
+  }
+}
+
+extern "C"  int rbd_status_list_usages(rados_ioctx_t p,
+    const char *start, size_t max,
+    rbd_status_usage_t *c_usages, size_t *size)
+{
+  librados::IoCtx io_ctx;
+  librados::IoCtx::from_rados_ioctx_t(p, io_ctx);
+  vector<librbd::status_usage_t> cpp_usages;
+  int r = librbd::api::Image<>::status_list_usages(io_ctx, start, max,
+      &cpp_usages);
+  if (r < 0) {
+    return r;
+  }
+
+  if (!c_usages) {
+    return -EINVAL;
+  }
+
+  for (size_t i = 0; i < (size_t)cpp_usages.size(); i++) {
+    assert(i < max);
+
+    const auto &cpp_usage = cpp_usages[i];
+    auto &c_usage = c_usages[i];
+
+    c_usage.state = cpp_usage.state;
+    c_usage.id = strdup(cpp_usage.id.c_str());
+    c_usage.size = cpp_usage.size;
+    c_usage.used = cpp_usage.used;
+  }
+
+  *size = cpp_usages.size();
+  return 0;
+}
+
+extern "C"  void rbd_status_list_usages_cleanup(rbd_status_usage_t *usages,
+    size_t size)
+{
+  for (size_t i = 0; i < size; i++) {
+    auto &usage = usages[i];
+
+    free(usage.id);
+  }
+}
+
+extern "C" int rbd_status_get_usage(rbd_image_t image,
+    rbd_status_usage_t *c_usage)
+{
+  librbd::ImageCtx *ictx = (librbd::ImageCtx *)image;
+
+  librbd::status_usage_t cpp_usage;
+  int r = librbd::api::Image<>::status_get_usage(ictx, &cpp_usage);
+  if (r < 0) {
+    return r;
+  }
+
+  if (!c_usage) {
+    return -EINVAL;
+  }
+
+  c_usage->state = cpp_usage.state;
+  c_usage->id = 0;
+  c_usage->size = cpp_usage.size;
+  c_usage->used = cpp_usage.used;
+  return 0;
+}
+
+extern "C" void rbd_disable_status_update(rbd_image_t image)
+{
+  librbd::ImageCtx *ictx = (librbd::ImageCtx *)image;
+
+  ictx->disable_status_update();
 }

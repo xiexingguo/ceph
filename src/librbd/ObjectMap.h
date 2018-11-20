@@ -102,6 +102,10 @@ public:
   void snapshot_add(uint64_t snap_id, Context *on_finish);
   void snapshot_remove(uint64_t snap_id, Context *on_finish);
 
+  int get_object_map(BitVector<2>* om);
+  static void calculate_usage(ImageCtxT& ictx, BitVector<2>& om,
+      uint64_t *used, uint64_t *dirty);
+
 private:
   struct UpdateOperation {
     uint64_t start_object_no;

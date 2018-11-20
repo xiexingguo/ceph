@@ -43,6 +43,20 @@ public:
                              on_finish);
   }
 
+  static CreateRequest *create(IoCtx &ioctx, const std::string &image_name,
+                               const std::string &image_id, uint64_t size,
+                               const ImageOptions &image_options,
+                               const std::string &non_primary_global_image_id,
+                               const std::string &primary_mirror_uuid,
+                               bool skip_mirror_enable,
+                               ParentSpec pspec,
+                               ContextWQ *op_work_queue, Context *on_finish) {
+    return new CreateRequest(ioctx, image_name, image_id, size, image_options,
+                             non_primary_global_image_id, primary_mirror_uuid,
+                             skip_mirror_enable, pspec, op_work_queue,
+                             on_finish);
+  }
+
   static int validate_order(CephContext *cct, uint8_t order);
 
   void send();
@@ -98,6 +112,15 @@ private:
                 bool skip_mirror_enable,
                 ContextWQ *op_work_queue, Context *on_finish);
 
+  CreateRequest(IoCtx &ioctx, const std::string &image_name,
+                const std::string &image_id, uint64_t size,
+                const ImageOptions &image_options,
+                const std::string &non_primary_global_image_id,
+                const std::string &primary_mirror_uuid,
+                bool skip_mirror_enable,
+                ParentSpec &pspec,
+                ContextWQ *op_work_queue, Context *on_finish);
+
   IoCtx &m_ioctx;
   IoCtx m_data_io_ctx;
   std::string m_image_name;
@@ -116,6 +139,7 @@ private:
   const std::string m_primary_mirror_uuid;
   bool m_skip_mirror_enable;
   bool m_negotiate_features = false;
+  ParentSpec m_pspec;
 
   ContextWQ *m_op_work_queue;
   Context *m_on_finish;
@@ -141,6 +165,9 @@ private:
 
   void negotiate_features();
   void handle_negotiate_features(int r);
+
+  void send_status_add_image();
+  void handle_status_add_image(int r);
 
   void create_image();
   void handle_create_image(int r);
@@ -171,6 +198,9 @@ private:
 
   void remove_header_object();
   void handle_remove_header_object(int r);
+
+  void remove_from_status();
+  void handle_remove_from_status(int r);
 
   void remove_from_dir();
   void handle_remove_from_dir(int r);

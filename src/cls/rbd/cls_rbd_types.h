@@ -343,6 +343,136 @@ struct TrashImageSpec {
 };
 WRITE_CLASS_ENCODER(TrashImageSpec);
 
+enum {
+  STATUS_IMAGE_STATE_IDLE       = 1 << 0,
+  STATUS_IMAGE_STATE_MAPPED     = 1 << 1,
+  STATUS_IMAGE_STATE_TRASH      = 1 << 2,
+  STATUS_IMAGE_STATE_ALL        = ~0ULL,
+};
+
+const uint64_t STATUS_IMAGE_STATE_MASK = (
+    STATUS_IMAGE_STATE_IDLE |
+    STATUS_IMAGE_STATE_MAPPED);
+
+struct StatusCloneId {
+  int64_t pool_id = -1;
+  std::string image_id;
+
+  StatusCloneId() {}
+  StatusCloneId(int64_t pool_id, std::string image_id) :
+    pool_id(pool_id), image_id(image_id) {}
+
+  friend bool operator<(const StatusCloneId &lhs, const StatusCloneId &rhs)
+  {
+      if (lhs.pool_id < rhs.pool_id) {
+        return true;
+      } else if (lhs.pool_id == rhs.pool_id) {
+        if (lhs.image_id < rhs.image_id) {
+          return true;
+        }
+      }
+      return false;
+  }
+
+  friend bool operator==(const StatusCloneId &lhs, const StatusCloneId &rhs)
+  {
+      if (lhs.pool_id != rhs.pool_id) {
+        return false;
+      }
+      if (lhs.image_id != rhs.image_id) {
+        return false;
+      }
+      return true;
+  }
+
+  void encode(bufferlist &bl) const;
+  void decode(bufferlist::iterator &it);
+  void dump(Formatter *f) const;
+};
+WRITE_CLASS_ENCODER(StatusCloneId);
+
+struct StatusParentId {
+  int64_t pool_id = -1;
+  std::string image_id;
+  uint64_t snapshot_id = CEPH_NOSNAP;
+
+  void encode(bufferlist &bl) const;
+  void decode(bufferlist::iterator &it);
+  void dump(Formatter *f) const;
+};
+WRITE_CLASS_ENCODER(StatusParentId);
+
+struct StatusSnapshot {
+  utime_t create_timestamp;
+  SnapshotNamespaceOnDisk snapshot_namespace;
+  std::string name;
+  std::string image_id;
+  uint64_t id = 0;
+  uint64_t size = 0;
+  uint64_t used = 0;
+  uint64_t dirty = 0;
+  std::set<StatusCloneId> clone_ids;
+
+  StatusSnapshot& operator=(StatusSnapshot &rhs) {
+    if (this == &rhs) {
+      return *this;
+    }
+
+    create_timestamp = rhs.create_timestamp;
+    snapshot_namespace = rhs.snapshot_namespace;
+    name = rhs.name;
+    image_id = rhs.image_id;
+    id = rhs.id;
+    size = rhs.size;
+    used = rhs.used;
+    dirty = rhs.dirty;
+    clone_ids = std::move(rhs.clone_ids);
+
+    return *this;
+  }
+
+  void encode(bufferlist &bl) const;
+  void decode(bufferlist::iterator &it);
+  void dump2(Formatter *f) const;
+};
+WRITE_CLASS_ENCODER(StatusSnapshot);
+
+struct StatusImage {
+  uint64_t state = STATUS_IMAGE_STATE_IDLE;
+  utime_t last_update;
+  utime_t create_timestamp;
+  StatusParentId parent;
+  int64_t data_pool_id = -1;
+  std::string name;
+  std::string id;
+  uint8_t order = 0;
+  uint64_t stripe_unit = 0;
+  uint64_t stripe_count = 0;
+  uint64_t size = 0;
+  uint64_t used = 0;
+  int64_t qos_iops = -1;
+  int64_t qos_bps = -1;
+  int64_t qos_reservation = -1;
+  int64_t qos_weight = -1;
+  std::set<uint64_t> snapshot_ids;
+
+  void encode(bufferlist &bl) const;
+  void decode(bufferlist::iterator &it);
+  void dump2(Formatter *f) const;
+};
+WRITE_CLASS_ENCODER(StatusImage);
+
+struct StatusUsage {
+  uint64_t state;
+  std::string id;
+  uint64_t size;
+  uint64_t used;
+
+  void encode(bufferlist &bl) const;
+  void decode(bufferlist::iterator &it);
+};
+WRITE_CLASS_ENCODER(StatusUsage);
+
 } // namespace rbd
 } // namespace cls
 

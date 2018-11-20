@@ -206,7 +206,7 @@ void CloneRequest<I>::send_create() {
   RWLock::RLocker snap_locker(m_p_imctx->snap_lock);
   CreateRequest<I> *req = CreateRequest<I>::create(
     m_ioctx, m_name, m_id, m_size, m_opts, m_non_primary_global_image_id,
-    m_primary_mirror_uuid, true, m_op_work_queue, ctx);
+    m_primary_mirror_uuid, true, m_pspec, m_op_work_queue, ctx);
   req->send();
 }
 
@@ -241,6 +241,43 @@ void CloneRequest<I>::handle_open(int r) {
     lderr(m_cct) << "Error opening new image: " << cpp_strerror(r) << dendl;
     m_r_saved = r;
     return send_remove();
+  }
+
+  send_status_add_child();
+}
+
+template <typename I>
+void CloneRequest<I>::send_status_add_child() {
+  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+
+  cls::rbd::StatusParentId parent;
+  parent.pool_id = m_pspec.pool_id;
+  parent.image_id = m_pspec.image_id;
+  parent.snapshot_id = m_pspec.snap_id;
+
+  librados::ObjectWriteOperation op;
+  cls_client::status_add_child(&op, parent, m_ioctx.get_id(), m_imctx->id);
+
+  using klass = CloneRequest<I>;
+  librados::AioCompletion *comp =
+    create_rados_callback<klass, &klass::handle_status_add_child>(this);
+  int r = m_p_imctx->md_ctx.aio_operate(RBD_STATUS, comp, &op);
+  assert(r == 0);
+  comp->release();
+}
+
+template <typename I>
+void CloneRequest<I>::handle_status_add_child(int r) {
+  ldout(m_cct, 20) << this << " " << __func__ << " r=" << r << dendl;
+
+  // r == -EOPNOTSUPP -> server side has upgraded to a version w/o status feature
+  // r == -ENOENT -> server supports status feature but the RBD_STATUS object
+  // does not exist, one possible cause: in a cinder HA pair environment,
+  // the master and slave have different versions w/ or w/o status feature
+  if (r < 0 && r != -EOPNOTSUPP && r != -ENOENT ) {
+    lderr(m_cct) << "error adding child to status: " << cpp_strerror(r) << dendl;
+    m_r_saved = r;
+    return send_close();
   }
 
   send_set_parent();

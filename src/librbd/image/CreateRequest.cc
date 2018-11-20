@@ -212,6 +212,21 @@ CreateRequest<I>::CreateRequest(IoCtx &ioctx, const std::string &image_name,
 }
 
 template<typename I>
+CreateRequest<I>::CreateRequest(IoCtx &ioctx, const std::string &image_name,
+                                const std::string &image_id, uint64_t size,
+                                const ImageOptions &image_options,
+                                const std::string &non_primary_global_image_id,
+                                const std::string &primary_mirror_uuid,
+                                bool skip_mirror_enable,
+                                ParentSpec &pspec,
+                                ContextWQ *op_work_queue, Context *on_finish)
+  : CreateRequest(ioctx, image_name, image_id, size, image_options,
+      non_primary_global_image_id, primary_mirror_uuid, skip_mirror_enable,
+      op_work_queue, on_finish) {
+  m_pspec = pspec;
+}
+
+template<typename I>
 void CreateRequest<I>::send() {
   ldout(m_cct, 20) << dendl;
 
@@ -350,7 +365,7 @@ void CreateRequest<I>::handle_add_image_to_directory(int r) {
 template<typename I>
 void CreateRequest<I>::negotiate_features() {
   if (!m_negotiate_features) {
-    create_image();
+    send_status_add_image();
     return;
   }
 
@@ -385,6 +400,42 @@ void CreateRequest<I>::handle_negotiate_features(int r) {
     m_features &= all_features;
     ldout(m_cct, 10) << "limiting default features set to server supported: "
 		     << m_features << dendl;
+  }
+
+  send_status_add_image();
+}
+
+template<typename I>
+void CreateRequest<I>::send_status_add_image() {
+  ldout(m_cct, 20) << dendl;
+
+  librados::ObjectWriteOperation op;
+  cls::rbd::StatusParentId pid;
+  pid.pool_id = m_pspec.pool_id;
+  pid.image_id = m_pspec.image_id;
+  pid.snapshot_id = static_cast<uint64_t>(m_pspec.snap_id);
+  cls_client::status_add_image(&op, pid, m_image_id,
+      m_data_pool_id, m_image_name,
+      m_order, m_stripe_unit, m_stripe_count, m_size);
+
+  using klass = CreateRequest<I>;
+  librados::AioCompletion *comp =
+    create_rados_callback<klass, &klass::handle_status_add_image>(this);
+  int r = m_ioctx.aio_operate(RBD_STATUS, comp, &op);
+  assert(r == 0);
+  comp->release();
+}
+
+template<typename I>
+void CreateRequest<I>::handle_status_add_image(int r) {
+  ldout(m_cct, 20) << "r=" << r << dendl;
+
+  if (r < 0 && r != -EOPNOTSUPP && r != -ENOENT) {
+    lderr(m_cct) << "error send_status_add_image: "
+                 << cpp_strerror(r) << dendl;
+    m_r_saved = r;
+    remove_from_dir();
+    return;
   }
 
   create_image();
@@ -427,7 +478,7 @@ void CreateRequest<I>::handle_create_image(int r) {
   if (r < 0) {
     lderr(m_cct) << "error writing header: " << cpp_strerror(r) << dendl;
     m_r_saved = r;
-    remove_from_dir();
+    remove_from_status();
     return;
   }
 
@@ -736,6 +787,33 @@ void CreateRequest<I>::handle_remove_header_object(int r) {
   if (r < 0) {
     lderr(m_cct) << "error cleaning up image header after creation failed: "
                  << cpp_strerror(r) << dendl;
+  }
+
+  remove_from_status();
+}
+
+template<typename I>
+void CreateRequest<I>::remove_from_status() {
+  ldout(m_cct, 20) << dendl;
+
+  librados::ObjectWriteOperation op;
+  cls_client::status_remove_image(&op, m_image_id);
+
+  using klass = CreateRequest<I>;
+  librados::AioCompletion *comp =
+    create_rados_callback<klass, &klass::handle_remove_from_status>(this);
+  int r = m_ioctx.aio_operate(RBD_STATUS, comp, &op);
+  assert(r == 0);
+  comp->release();
+}
+
+template<typename I>
+void CreateRequest<I>::handle_remove_from_status(int r) {
+  ldout(m_cct, 20) << "r=" << r << dendl;
+
+  if (r < 0 && r != -EOPNOTSUPP && r != -ENOENT) {
+    lderr(m_cct) << "error cleaning up image from rbd_status object "
+                 << "after creation failed: " << cpp_strerror(r) << dendl;
   }
 
   remove_from_dir();

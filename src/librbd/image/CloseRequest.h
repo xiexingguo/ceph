@@ -82,6 +82,9 @@ private:
   void send_shut_down_update_watchers();
   void handle_shut_down_update_watchers(int r);
 
+  void send_status_update_shutdown();
+  void handle_status_update_shutdown(int r);
+
   void send_shut_down_io_queue();
   void handle_shut_down_io_queue(int r);
 

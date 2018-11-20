@@ -357,6 +357,85 @@ void ObjectMap<I>::aio_update(uint64_t snap_id, uint64_t start_object_no,
   req->send();
 }
 
+template <typename I>
+int ObjectMap<I>::get_object_map(BitVector<2>* om) {
+  assert(m_image_ctx.snap_lock.is_locked());
+  assert(m_image_ctx.object_map_lock.is_locked());
+
+  CephContext* cct = m_image_ctx.cct;
+  ldout(cct, 10) << dendl;
+
+  if ((m_image_ctx.features & RBD_FEATURE_OBJECT_MAP) == 0) {
+    return -ENOENT;
+  }
+
+  uint64_t flags;
+  int r = m_image_ctx.get_flags(CEPH_NOSNAP, &flags);
+  if (r < 0) {
+    lderr(cct) << "failed to retrieve image flags" << dendl;
+    return r;
+  }
+  if ((flags & RBD_FLAG_OBJECT_MAP_INVALID) != 0) {
+    ldout(cct, 1) << "cannot perform du calc on invalid "
+                  << "object map" << dendl;
+    return -EINVAL;
+  }
+
+  *om = m_object_map;
+
+  return 0;
+}
+
+#undef dout_prefix
+#define dout_prefix *_dout << "librbd::ObjectMap: " << __func__ \
+                           << ": "
+
+template <typename I>
+void ObjectMap<I>::calculate_usage(I& ictx, BitVector<2>& om,
+    uint64_t *used, uint64_t *dirty) {
+  assert(used || dirty);
+
+  CephContext* cct = ictx.cct;
+
+  utime_t start = ceph_clock_now();
+  utime_t latency;
+
+  uint64_t r_used = 0, r_dirty = 0;
+
+  uint64_t left = ictx.size;;
+  uint64_t object_size = (1ull << ictx.order);
+
+  auto it = om.begin();
+  auto end_it = om.end();
+  while (it != end_it) {
+    uint64_t len = min(object_size, left);
+    if (*it == OBJECT_EXISTS) {
+      r_used += len;
+      r_dirty += len;
+    } else if (*it == OBJECT_EXISTS_CLEAN) {
+      r_used += len;
+    }
+
+    ++it;
+    left -= len;
+  }
+
+  latency = ceph_clock_now() - start;
+  ldout(cct, 10) << "calc usage latency: "
+                << latency.sec() << "s/"
+                << latency.usec() << "us" << dendl;
+
+  ldout(cct, 10) << "used: " << stringify(byte_u_t(r_used))
+                 << ", dirty: " << stringify(byte_u_t(r_dirty)) << dendl;
+
+  if (used) {
+    *used = r_used;
+  }
+  if (dirty) {
+    *dirty = r_dirty;
+  }
+}
+
 } // namespace librbd
 
 template class librbd::ObjectMap<librbd::ImageCtx>;

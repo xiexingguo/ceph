@@ -65,6 +65,8 @@ private:
    */
   enum State {
     STATE_FLATTEN_OBJECTS,
+    STATE_STATUS_REMOVE_PARENT,
+    STATE_STATUS_REMOVE_CHILD,
     STATE_UPDATE_HEADER,
     STATE_UPDATE_CHILDREN
   };
@@ -75,9 +77,12 @@ private:
   ProgressContext &m_prog_ctx;
   State m_state;
 
+  librados::IoCtx m_parent_ioctx;
   ParentSpec m_parent_spec;
   bool m_ignore_enoent;
 
+  bool send_status_remove_parent();
+  bool send_status_remove_child();
   bool send_update_header();
   bool send_update_children();
 };

@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <errno.h>
 #include <sstream>
+#include <limits>
 
 #include "common/bit_vector.hpp"
 #include "common/errno.h"
@@ -5211,6 +5212,1152 @@ int trash_state_set(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   }
 }
 
+#define STATUS_VERSION_KEY              "zversion"
+#define STATUS_IMAGE_KEY_PREFIX         "zimage_"
+#define STATUS_SNAPSHOT_KEY_PREFIX      "zsnapshot_"
+
+constexpr uint64_t kInvalidSize = std::numeric_limits<uint64_t>::max();
+
+static std::string status_key_for_image(const std::string &id)
+{
+  return STATUS_IMAGE_KEY_PREFIX + id;
+}
+
+static std::string status_key_for_snapshot(uint64_t id)
+{
+  ostringstream oss;
+  oss << STATUS_SNAPSHOT_KEY_PREFIX
+      << std::setw(16) << std::setfill('0') << std::hex << id;
+  return oss.str();
+}
+
+int status_get_version(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  uint64_t version = 0;
+  int r = read_key(hctx, STATUS_VERSION_KEY, &version);
+  if (r < 0 && r != -ENOENT) {
+    return r;
+  }
+
+  ::encode(version, *out);
+  return 0;
+}
+
+int status_inc_version(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  uint64_t version_inc = 0;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(version_inc, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  uint64_t version = 0;
+  int r = read_key(hctx, STATUS_VERSION_KEY, &version);
+  if (r < 0 && r != -ENOENT) {
+    return r;
+  }
+
+  std::map<std::string, bufferlist> vals;
+
+  version += version_inc;
+  bufferlist version_bl;
+  ::encode(version, version_bl);
+
+  vals[STATUS_VERSION_KEY] = version_bl;
+
+  r = cls_cxx_map_set_vals(hctx, &vals);
+  if (r < 0) {
+    CLS_ERR("error set status version: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  return 0;
+}
+
+int status_list_images(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  std::string start_after;
+  uint64_t max_return;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(start_after, iter);        // image id as key
+    ::decode(max_return, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  CephContext *cct = cls_cct();
+  double interval = cct->_conf->get_val<double>("rbd_status_update_interval");
+  uint64_t max_count = cct->_conf->get_val<int64_t>("rbd_status_update_skip_max_count");
+
+  double max_idle = interval * (max_count + 3);
+  utime_t latest = ceph_clock_now();
+  latest -= max_idle;
+
+  int max_read = RBD_MAX_KEYS_READ;
+  std::vector<cls::rbd::StatusImage> images;
+  std::string last_read = status_key_for_image(start_after);
+  bool more = true;
+
+  while (more && images.size() < max_return) {
+    map<std::string, bufferlist> vals;
+    CLS_LOG(20, "last_read = '%s'", last_read.c_str());
+    int r = cls_cxx_map_get_vals(hctx, last_read, STATUS_IMAGE_KEY_PREFIX,
+        max_read, &vals, &more);
+    if (r < 0) {
+      CLS_ERR("error reading status images: %s", cpp_strerror(r).c_str());
+      return r;
+    }
+
+    for (auto &it : vals) {
+      cls::rbd::StatusImage image;
+      bufferlist::iterator iter = it.second.begin();
+      try {
+        ::decode(image, iter);
+      } catch (const buffer::error &err) {
+        CLS_ERR("could not decode status image: '%s'", it.first.c_str());
+        return -EIO;
+      }
+
+      // update state
+      if (latest > image.last_update) {
+        image.state &= ~cls::rbd::STATUS_IMAGE_STATE_MASK;
+        image.state |= cls::rbd::STATUS_IMAGE_STATE_IDLE;
+      }
+
+      // kind of protection, see `status_update_size`
+      if (image.used > image.size) {
+        image.used = image.size;
+      }
+
+      CLS_LOG(20, "listing status image '%s' -> '%s'", image.id.c_str(),
+          image.name.c_str());
+
+      images.push_back(image);
+
+      if (images.size() >= max_return)
+        break;
+    }
+    if (!vals.empty()) {
+      last_read = vals.rbegin()->first;
+    }
+  }
+
+  ::encode(images, *out);
+
+  return 0;
+}
+
+int status_list_snapshots(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  uint64_t start_after;
+  uint64_t max_return;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(start_after, iter);        // snapshot id as key
+    ::decode(max_return, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  int max_read = RBD_MAX_KEYS_READ;
+  std::vector<cls::rbd::StatusSnapshot> snapshots;
+  std::string last_read = status_key_for_snapshot(start_after);
+  bool more = true;
+
+  while (more && snapshots.size() < max_return) {
+    map<std::string, bufferlist> vals;
+    CLS_LOG(20, "last_read = '%s'", last_read.c_str());
+    int r = cls_cxx_map_get_vals(hctx, last_read, STATUS_SNAPSHOT_KEY_PREFIX,
+        max_read, &vals, &more);
+    if (r < 0) {
+      CLS_ERR("error reading status snapshots: %s", cpp_strerror(r).c_str());
+      return r;
+    }
+
+    for (auto &it : vals) {
+      cls::rbd::StatusSnapshot snapshot;
+      bufferlist::iterator iter = it.second.begin();
+      try {
+        ::decode(snapshot, iter);
+      } catch (const buffer::error &err) {
+        CLS_ERR("could not decode status snapshot: '%s'", it.first.c_str());
+        return -EIO;
+      }
+
+      CLS_LOG(20, "listing status snapshot '0x%lx' -> '%s@%s'", snapshot.id,
+          snapshot.image_id.c_str(), snapshot.name.c_str());
+
+      // kind of protection, see `status_add_snapshot`
+      if (snapshot.used > snapshot.size) {
+        snapshot.used = snapshot.size;
+      }
+      if (snapshot.dirty > snapshot.size) {
+        snapshot.dirty = snapshot.size;
+      }
+      snapshots.push_back(snapshot);
+
+      if (snapshots.size() >= max_return)
+        break;
+    }
+    if (!vals.empty()) {
+      last_read = vals.rbegin()->first;
+    }
+  }
+
+  ::encode(snapshots, *out);
+
+  return 0;
+}
+
+int status_list_usages(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  std::string start_after;
+  uint64_t max_return;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(start_after, iter);        // image id as key
+    ::decode(max_return, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  CephContext *cct = cls_cct();
+  double interval = cct->_conf->get_val<double>("rbd_status_update_interval");
+  uint64_t max_count = cct->_conf->get_val<int64_t>("rbd_status_update_skip_max_count");
+
+  double max_idle = interval * (max_count + 3);
+  utime_t latest = ceph_clock_now();
+  latest -= max_idle;
+
+  int max_read = RBD_MAX_KEYS_READ;
+  std::vector<cls::rbd::StatusUsage> usages;
+  std::string last_read = status_key_for_image(start_after);
+  bool more = true;
+
+  while (more && usages.size() < max_return) {
+    map<std::string, bufferlist> vals;
+    CLS_LOG(20, "last_read = '%s'", last_read.c_str());
+    int r = cls_cxx_map_get_vals(hctx, last_read, STATUS_IMAGE_KEY_PREFIX,
+        max_read, &vals, &more);
+    if (r < 0) {
+      CLS_ERR("error reading status images: %s", cpp_strerror(r).c_str());
+      return r;
+    }
+
+    for (auto &it : vals) {
+      cls::rbd::StatusImage image;
+      bufferlist::iterator iter = it.second.begin();
+      try {
+        ::decode(image, iter);
+      } catch (const buffer::error &err) {
+        CLS_ERR("could not decode status image: '%s'", it.first.c_str());
+        return -EIO;
+      }
+
+      CLS_LOG(20, "listing image '%s' -> '%s'", image.id.c_str(),
+          image.name.c_str());
+
+      // update state
+      if (latest > image.last_update) {
+        image.state &= ~cls::rbd::STATUS_IMAGE_STATE_MASK;
+        image.state |= cls::rbd::STATUS_IMAGE_STATE_IDLE;
+      }
+
+      cls::rbd::StatusUsage usage;
+      usage.state = image.data_pool_id; // used as data pool id
+      usage.id = image.id;
+      usage.size = image.size;
+      usage.used = image.used;
+
+      // kind of protection, see `status_update_size`
+      if (usage.used > usage.size) {
+        usage.used = usage.size;
+      }
+
+      usages.push_back(usage);
+
+      if (usages.size() >= max_return)
+        break;
+    }
+    if (!vals.empty()) {
+      last_read = vals.rbegin()->first;
+    }
+  }
+
+  ::encode(usages, *out);
+
+  return 0;
+}
+
+int status_add_image(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  int r = cls_cxx_create(hctx, false);
+  if (r < 0) {
+    CLS_ERR("could not create status: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  cls::rbd::StatusParentId pid;
+  std::string id;
+  int64_t data_pool_id = -1;
+  std::string name;
+  uint8_t order = 0;
+  uint64_t stripe_unit = 0;
+  uint64_t stripe_count = 0;
+  uint64_t size = 0;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(pid, iter);
+    ::decode(id, iter);
+    ::decode(data_pool_id, iter);
+    ::decode(name, iter);
+    ::decode(order, iter);
+    ::decode(stripe_unit, iter);
+    ::decode(stripe_count, iter);
+    ::decode(size, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  uint64_t version = 0;
+  r = read_key(hctx, STATUS_VERSION_KEY, &version);
+  if (r < 0 && r != -ENOENT) {
+    CLS_ERR("Could not read status version off disk: %s",
+            cpp_strerror(r).c_str());
+    return r;
+  }
+
+  std::map<std::string, bufferlist> vals;
+
+  version++;
+  bufferlist version_bl;
+  ::encode(version, version_bl);
+
+  vals[STATUS_VERSION_KEY] = version_bl;
+
+  std::string image_key = status_key_for_image(id);
+  cls::rbd::StatusImage image;
+  image.state = cls::rbd::STATUS_IMAGE_STATE_IDLE;
+  image.last_update = ceph_clock_now();
+  image.create_timestamp = ceph_clock_now();
+  image.parent = pid;
+  image.data_pool_id = data_pool_id;
+  image.name = name;
+  image.id = id;
+  image.order = order;
+  image.stripe_unit = stripe_unit;
+  image.stripe_count = stripe_count;
+  image.size = size;
+
+  bufferlist image_bl;
+  ::encode(image, image_bl);
+
+  vals[image_key] = image_bl;
+
+  r = cls_cxx_map_set_vals(hctx, &vals);
+  if (r < 0) {
+    CLS_ERR("error adding status image: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  return 0;
+}
+
+int status_remove_image(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  std::string id;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(id, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  uint64_t version = 0;
+  int r = read_key(hctx, STATUS_VERSION_KEY, &version);
+  if (r < 0 && r != -ENOENT) {
+    CLS_ERR("Could not read status version off disk: %s",
+            cpp_strerror(r).c_str());
+    return r;
+  }
+
+  std::map<std::string, bufferlist> vals;
+
+  version++;
+  bufferlist version_bl;
+  ::encode(version, version_bl);
+
+  vals[STATUS_VERSION_KEY] = version_bl;
+
+  std::string image_key = status_key_for_image(id);
+  cls::rbd::StatusImage image;
+  r = read_key(hctx, image_key, &image);
+  if (r < 0) {
+    if (r == -ENOENT) {
+      r = 0;
+    }
+    return r;
+  }
+
+  r = cls_cxx_map_set_vals(hctx, &vals);
+  if (r < 0) {
+    CLS_ERR("error updating status version: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  std::set<std::string> keys;
+  for (auto & i : image.snapshot_ids) {
+    CLS_ERR("dangling snapshot: 0x%lx for image: %s -> %s", i,
+        image.id.c_str(), image.name.c_str());
+    std::string snapshot_key = status_key_for_snapshot(i);
+    keys.insert(snapshot_key);
+  }
+
+  keys.insert(image_key);
+
+  r = cls_cxx_map_remove_keys(hctx, &keys);
+  if (r < 0 && r != -ENOENT) {
+    CLS_ERR("error removing status image: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  return 0;
+}
+
+int status_rename_image(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  std::string id;
+  std::string name;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(id, iter);
+    ::decode(name, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  uint64_t version = 0;
+  int r = read_key(hctx, STATUS_VERSION_KEY, &version);
+  if (r < 0 && r != -ENOENT) {
+    CLS_ERR("Could not read status version off disk: %s",
+            cpp_strerror(r).c_str());
+    return r;
+  }
+
+  std::map<std::string, bufferlist> vals;
+
+  version++;
+  bufferlist version_bl;
+  ::encode(version, version_bl);
+
+  vals[STATUS_VERSION_KEY] = version_bl;
+
+  std::string image_key = status_key_for_image(id);
+  cls::rbd::StatusImage image;
+  r = read_key(hctx, image_key, &image);
+  if (r < 0) {
+    return r;
+  }
+
+  image.name = name;
+
+  bufferlist image_bl;
+  ::encode(image, image_bl);
+
+  vals[image_key] = image_bl;
+
+  r = cls_cxx_map_set_vals(hctx, &vals);
+  if (r < 0) {
+    CLS_ERR("error renaming status image: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  return 0;
+}
+
+int status_flatten_clone(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  std::string id;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(id, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  uint64_t version = 0;
+  int r = read_key(hctx, STATUS_VERSION_KEY, &version);
+  if (r < 0 && r != -ENOENT) {
+    CLS_ERR("Could not read status version off disk: %s",
+            cpp_strerror(r).c_str());
+    return r;
+  }
+
+  std::map<std::string, bufferlist> vals;
+
+  version++;
+  bufferlist version_bl;
+  ::encode(version, version_bl);
+
+  vals[STATUS_VERSION_KEY] = version_bl;
+
+  std::string image_key = status_key_for_image(id);
+  cls::rbd::StatusImage image;
+  r = read_key(hctx, image_key, &image);
+  if (r < 0) {
+    return r;
+  }
+
+  if (image.parent.pool_id < 0) {
+    return 0;
+  }
+
+  image.parent.pool_id = -1;
+  image.parent.image_id.clear();
+  image.parent.snapshot_id = CEPH_NOSNAP;
+  bufferlist image_bl;
+  ::encode(image, image_bl);
+
+  vals[image_key] = image_bl;
+
+  r = cls_cxx_map_set_vals(hctx, &vals);
+  if (r < 0) {
+    CLS_ERR("error removing status parent: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  return 0;
+}
+
+int status_add_child(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  cls::rbd::StatusParentId pid;
+  int64_t pool_id;
+  std::string id;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(pid, iter);
+    ::decode(pool_id, iter);
+    ::decode(id, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  uint64_t version = 0;
+  int r = read_key(hctx, STATUS_VERSION_KEY, &version);
+  if (r < 0 && r != -ENOENT) {
+    CLS_ERR("Could not read status version off disk: %s",
+            cpp_strerror(r).c_str());
+    return r;
+  }
+
+  std::map<std::string, bufferlist> vals;
+
+  version++;
+  bufferlist version_bl;
+  ::encode(version, version_bl);
+
+  vals[STATUS_VERSION_KEY] = version_bl;
+
+  std::string snapshot_key = status_key_for_snapshot(pid.snapshot_id);
+  cls::rbd::StatusSnapshot snapshot;
+  r = read_key(hctx, snapshot_key, &snapshot);
+  if (r < 0) {
+    return r;
+  }
+  snapshot.clone_ids.insert(cls::rbd::StatusCloneId(pool_id, id));
+
+  bufferlist snapshot_bl;
+  ::encode(snapshot, snapshot_bl);
+
+  vals[snapshot_key] = snapshot_bl;
+
+  r = cls_cxx_map_set_vals(hctx, &vals);
+  if (r < 0) {
+    CLS_ERR("error adding status child: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  return 0;
+}
+
+int status_remove_child(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  cls::rbd::StatusParentId pid;
+  int64_t pool_id;
+  std::string id;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(pid, iter);
+    ::decode(pool_id, iter);
+    ::decode(id, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  uint64_t version = 0;
+  int r = read_key(hctx, STATUS_VERSION_KEY, &version);
+  if (r < 0 && r != -ENOENT) {
+    CLS_ERR("Could not read status version off disk: %s",
+            cpp_strerror(r).c_str());
+    return r;
+  }
+
+  std::map<std::string, bufferlist> vals;
+
+  version++;
+  bufferlist version_bl;
+  ::encode(version, version_bl);
+
+  vals[STATUS_VERSION_KEY] = version_bl;
+
+  std::string snapshot_key = status_key_for_snapshot(pid.snapshot_id);
+  cls::rbd::StatusSnapshot snapshot;
+  r = read_key(hctx, snapshot_key, &snapshot);
+  if (r < 0 && r != -ENOENT) {
+    return r;
+  }
+
+  if (r != -ENOENT) {
+    snapshot.clone_ids.erase(cls::rbd::StatusCloneId(pool_id, id));
+    bufferlist snapshot_bl;
+    ::encode(snapshot, snapshot_bl);
+
+    vals[snapshot_key] = snapshot_bl;
+  }
+
+  r = cls_cxx_map_set_vals(hctx, &vals);
+  if (r < 0) {
+    CLS_ERR("error removing status child: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  return 0;
+}
+
+int status_update_size(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  std::string id;
+  uint64_t size;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(id, iter);
+    ::decode(size, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  uint64_t version = 0;
+  int r = read_key(hctx, STATUS_VERSION_KEY, &version);
+  if (r < 0 && r != -ENOENT) {
+    CLS_ERR("Could not read status version off disk: %s",
+            cpp_strerror(r).c_str());
+    return r;
+  }
+
+  std::map<std::string, bufferlist> vals;
+
+  version++;
+  bufferlist version_bl;
+  ::encode(version, version_bl);
+
+  vals[STATUS_VERSION_KEY] = version_bl;
+
+  std::string image_key = status_key_for_image(id);
+  cls::rbd::StatusImage image;
+  r = read_key(hctx, image_key, &image);
+  if (r < 0) {
+    return r;
+  }
+
+  image.size = size;
+  if (size < image.used) { // resize to shrink
+    image.used = size;
+  }
+
+  bufferlist image_bl;
+  ::encode(image, image_bl);
+
+  vals[image_key] = image_bl;
+
+  r = cls_cxx_map_set_vals(hctx, &vals);
+  if (r < 0) {
+    CLS_ERR("error updating status image size: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  return 0;
+}
+
+int status_update_state(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  std::string id;
+  uint64_t state;
+  uint64_t mask;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(id, iter);
+    ::decode(state, iter);
+    ::decode(mask, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  uint64_t version = 0;
+  int r = read_key(hctx, STATUS_VERSION_KEY, &version);
+  if (r < 0 && r != -ENOENT) {
+    CLS_ERR("Could not read status version off disk: %s",
+            cpp_strerror(r).c_str());
+    return r;
+  }
+
+  std::map<std::string, bufferlist> vals;
+
+  version++;
+  bufferlist version_bl;
+  ::encode(version, version_bl);
+
+  vals[STATUS_VERSION_KEY] = version_bl;
+
+  std::string image_key = status_key_for_image(id);
+  cls::rbd::StatusImage image;
+  r = read_key(hctx, image_key, &image);
+  if (r < 0) {
+    return r;
+  }
+
+  // only the cases below will call this function to update the image's state:
+  // 1. close image
+  // 2. move image to trash
+  // 3. restore image from trash
+
+  // other cases will be handled separately:
+  // 1. periodical usage update updates to the 'MAPPED' state
+  // 2. if the image was closed abruptly then manual intervention is needed
+
+  image.state &= ~mask;
+  image.state |= state;
+
+  if (mask == cls::rbd::STATUS_IMAGE_STATE_MASK) {
+    image.last_update = ceph_clock_now();
+  }
+
+  bufferlist image_bl;
+  ::encode(image, image_bl);
+
+  vals[image_key] = image_bl;
+
+  r = cls_cxx_map_set_vals(hctx, &vals);
+  if (r < 0) {
+    CLS_ERR("error updating status image state: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  return 0;
+}
+
+int status_update_used(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  std::string id;
+  uint64_t used;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(id, iter);
+    ::decode(used, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  // for image state and used size updated by client io, we do not update
+  // status version
+
+  std::string image_key = status_key_for_image(id);
+  cls::rbd::StatusImage image;
+  int r = read_key(hctx, image_key, &image);
+  if (r < 0) {
+    return r;
+  }
+
+  uint64_t cur_state = cls::rbd::STATUS_IMAGE_STATE_MAPPED;
+  uint64_t prev_state = image.state & cls::rbd::STATUS_IMAGE_STATE_MASK;
+
+  image.state &= ~cls::rbd::STATUS_IMAGE_STATE_MASK;
+  image.state |= cls::rbd::STATUS_IMAGE_STATE_MAPPED;
+  image.last_update = ceph_clock_now();
+  if (used != std::numeric_limits<uint64_t>::max()) {
+    if (used > image.size) { // calculated using stale object map
+      used = image.size;
+    }
+    image.used = used;
+  }
+
+  bufferlist image_bl;
+  ::encode(image, image_bl);
+
+  std::map<std::string, bufferlist> vals;
+
+  vals[image_key] = image_bl;
+
+  //
+  // update version if image state changed (trash state not included)
+  //
+  if (cur_state != prev_state) {
+    uint64_t version = 0;
+    int r = read_key(hctx, STATUS_VERSION_KEY, &version);
+    if (r < 0 && r != -ENOENT) {
+      CLS_ERR("Could not read status version off disk: %s",
+              cpp_strerror(r).c_str());
+      return r;
+    }
+
+    version++;
+    bufferlist version_bl;
+    ::encode(version, version_bl);
+
+    vals[STATUS_VERSION_KEY] = version_bl;
+  }
+
+  r = cls_cxx_map_set_vals(hctx, &vals);
+  if (r < 0) {
+    CLS_ERR("error updating status image used size: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  return 0;
+}
+
+int status_add_snapshot(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  std::string image_id, snap_name;
+  uint64_t snap_id;
+  cls::rbd::SnapshotNamespaceOnDisk snap_namespace;
+  uint64_t legacy_size; // now we read size from image
+  uint64_t used;
+  uint64_t dirty;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(image_id, iter);
+    ::decode(snap_id, iter);
+    ::decode(snap_name, iter);
+    ::decode(snap_namespace, iter);
+    ::decode(legacy_size, iter);
+    ::decode(used, iter);
+    ::decode(dirty, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  uint64_t version = 0;
+  int r = read_key(hctx, STATUS_VERSION_KEY, &version);
+  if (r < 0 && r != -ENOENT) {
+    CLS_ERR("Could not read status version off disk: %s",
+            cpp_strerror(r).c_str());
+    return r;
+  }
+
+  std::map<std::string, bufferlist> vals;
+
+  version++;
+  bufferlist version_bl;
+  ::encode(version, version_bl);
+
+  vals[STATUS_VERSION_KEY] = version_bl;
+
+  std::string image_key = status_key_for_image(image_id);
+  cls::rbd::StatusImage image;
+  r = read_key(hctx, image_key, &image);
+  if (r < 0) {
+    return r;
+  }
+
+  if (used != kInvalidSize) {
+    if (used < image.size) { // update used to the latest
+      image.used = used;
+    }
+  }
+
+  image.snapshot_ids.insert(snap_id);
+  bufferlist image_bl;
+  ::encode(image, image_bl);
+
+  vals[image_key] = image_bl;
+
+  std::string snapshot_key = status_key_for_snapshot(snap_id);
+  cls::rbd::StatusSnapshot snapshot;
+  snapshot.create_timestamp = ceph_clock_now();
+  snapshot.snapshot_namespace = snap_namespace;
+  snapshot.name = snap_name;
+  snapshot.image_id = image_id;
+  snapshot.id = snap_id;
+  snapshot.size = image.size;   // use size from image
+
+  if (used != kInvalidSize) {
+    snapshot.used = used;
+  } else {
+    snapshot.used = image.used; // fallback to image.used
+  }
+  if (snapshot.used > snapshot.size) {
+    snapshot.used = snapshot.size;
+  }
+
+  if (dirty != kInvalidSize) {
+    snapshot.dirty = dirty;
+  } else {
+    snapshot.dirty = 0;
+  }
+  if (snapshot.dirty > snapshot.size) {
+    snapshot.dirty = snapshot.size;
+  }
+
+  bufferlist snapshot_bl;
+  ::encode(snapshot, snapshot_bl);
+
+  vals[snapshot_key] = snapshot_bl;
+
+  r = cls_cxx_map_set_vals(hctx, &vals);
+  if (r < 0) {
+    CLS_ERR("error adding status snapshot: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  return 0;
+}
+
+int status_remove_snapshot(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  std::string image_id;
+  uint64_t snap_id;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(image_id, iter);
+    ::decode(snap_id, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  uint64_t version = 0;
+  int r = read_key(hctx, STATUS_VERSION_KEY, &version);
+  if (r < 0 && r != -ENOENT) {
+    CLS_ERR("Could not read status version off disk: %s",
+            cpp_strerror(r).c_str());
+    return r;
+  }
+
+  std::map<std::string, bufferlist> vals;
+
+  version++;
+  bufferlist version_bl;
+  ::encode(version, version_bl);
+
+  vals[STATUS_VERSION_KEY] = version_bl;
+
+  std::string image_key = status_key_for_image(image_id);
+  cls::rbd::StatusImage image;
+  r = read_key(hctx, image_key, &image);
+  if (r < 0) {
+    return r;
+  }
+  image.snapshot_ids.erase(snap_id);
+  bufferlist image_bl;
+  ::encode(image, image_bl);
+
+  vals[image_key] = image_bl;
+
+  std::string snapshot_key = status_key_for_snapshot(snap_id);
+  r = cls_cxx_map_remove_key(hctx, snapshot_key);
+  if (r < 0 && r != -ENOENT) {
+    CLS_ERR("error removing status snapshot: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  r = cls_cxx_map_set_vals(hctx, &vals);
+  if (r < 0) {
+    CLS_ERR("error removing snapshot for status image: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  return 0;
+}
+
+int status_rename_snapshot(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  uint64_t snap_id;
+  std::string snap_name;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(snap_id, iter);
+    ::decode(snap_name, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  uint64_t version = 0;
+  int r = read_key(hctx, STATUS_VERSION_KEY, &version);
+  if (r < 0 && r != -ENOENT) {
+    CLS_ERR("Could not read status version off disk: %s",
+            cpp_strerror(r).c_str());
+    return r;
+  }
+
+  std::map<std::string, bufferlist> vals;
+
+  version++;
+  bufferlist version_bl;
+  ::encode(version, version_bl);
+
+  vals[STATUS_VERSION_KEY] = version_bl;
+
+  std::string snapshot_key = status_key_for_snapshot(snap_id);
+  cls::rbd::StatusSnapshot snapshot;
+  r = read_key(hctx, snapshot_key, &snapshot);
+  if (r < 0) {
+    return r;
+  }
+
+  snapshot.name = snap_name;
+  bufferlist snapshot_bl;
+  ::encode(snapshot, snapshot_bl);
+
+  vals[snapshot_key] = snapshot_bl;
+
+  r = cls_cxx_map_set_vals(hctx, &vals);
+  if (r < 0) {
+    CLS_ERR("error renaming status image: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  return 0;
+}
+
+int status_update_qos(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  std::string image_id;
+  int64_t iops = -2;
+  int64_t bps = -2;
+  int64_t reservation = -2;
+  int64_t weight = -2;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(image_id, iter);
+    ::decode(iops, iter);
+    ::decode(bps, iter);
+    ::decode(reservation, iter);
+    ::decode(weight, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  uint64_t version = 0;
+  int r = read_key(hctx, STATUS_VERSION_KEY, &version);
+  if (r < 0 && r != -ENOENT) {
+    CLS_ERR("Could not read status version off disk: %s",
+            cpp_strerror(r).c_str());
+    return r;
+  }
+
+  std::map<std::string, bufferlist> vals;
+
+  version++;
+  bufferlist version_bl;
+  ::encode(version, version_bl);
+
+  vals[STATUS_VERSION_KEY] = version_bl;
+
+  std::string image_key = status_key_for_image(image_id);
+  cls::rbd::StatusImage image;
+  r = read_key(hctx, image_key, &image);
+  if (r < 0) {
+    return r;
+  }
+  if (iops != -2) {     // -2 -> we don't care, -1 -> unset
+    image.qos_iops = iops;
+  }
+  if (bps != -2) {
+    image.qos_bps = bps;
+  }
+  if (reservation != -2) {
+    image.qos_reservation = reservation;
+  }
+  if (weight != -2) {
+    image.qos_weight = weight;
+  }
+
+  bufferlist image_bl;
+  ::encode(image, image_bl);
+
+  vals[image_key] = image_bl;
+
+  r = cls_cxx_map_set_vals(hctx, &vals);
+  if (r < 0) {
+    CLS_ERR("error updating status qos: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  return 0;
+}
+
+int status_get_usage(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  std::string id;
+  uint64_t snapshot_id;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(id, iter);
+    ::decode(snapshot_id, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  cls::rbd::StatusUsage usage;
+
+  if (snapshot_id == CEPH_NOSNAP) {
+    CephContext *cct = cls_cct();
+    double interval = cct->_conf->get_val<double>("rbd_status_update_interval");
+    uint64_t max_count = cct->_conf->get_val<int64_t>("rbd_status_update_skip_max_count");
+
+    double max_idle = interval * (max_count + 3);
+    utime_t latest = ceph_clock_now();
+    latest -= max_idle;
+
+    std::string image_key = status_key_for_image(id);
+    cls::rbd::StatusImage image;
+    int r = read_key(hctx, image_key, &image);
+    if (r < 0) {
+      return r;
+    }
+
+    // update state
+    if (latest > image.last_update) {
+      image.state &= ~cls::rbd::STATUS_IMAGE_STATE_MASK;
+      image.state |= cls::rbd::STATUS_IMAGE_STATE_IDLE;
+    }
+
+    usage.state = image.state;
+    usage.id.clear();
+    usage.size = image.size;
+    usage.used = image.used;
+  } else {
+    std::string snapshot_key = status_key_for_snapshot(snapshot_id);
+    cls::rbd::StatusSnapshot snapshot;
+    int r = read_key(hctx, snapshot_key, &snapshot);
+    if (r < 0) {
+      return r;
+    }
+
+    usage.state = 0;
+    usage.id.clear();
+    usage.size = snapshot.size;
+    usage.used = snapshot.used;
+  }
+
+  ::encode(usage, *out);
+
+  return 0;
+}
+
 CLS_INIT(rbd)
 {
   CLS_LOG(20, "Loaded rbd class!");
@@ -5307,6 +6454,26 @@ CLS_INIT(rbd)
   cls_method_handle_t h_trash_list;
   cls_method_handle_t h_trash_get;
   cls_method_handle_t h_trash_state_set;
+
+  cls_method_handle_t h_status_get_version;
+  cls_method_handle_t h_status_inc_version;
+  cls_method_handle_t h_status_list_images;
+  cls_method_handle_t h_status_list_snapshots;
+  cls_method_handle_t h_status_list_usages;
+  cls_method_handle_t h_status_add_image;
+  cls_method_handle_t h_status_remove_image;
+  cls_method_handle_t h_status_rename_image;
+  cls_method_handle_t h_status_flatten_clone;
+  cls_method_handle_t h_status_add_child;
+  cls_method_handle_t h_status_remove_child;
+  cls_method_handle_t h_status_update_size;
+  cls_method_handle_t h_status_update_state;
+  cls_method_handle_t h_status_update_used;
+  cls_method_handle_t h_status_add_snapshot;
+  cls_method_handle_t h_status_remove_snapshot;
+  cls_method_handle_t h_status_rename_snapshot;
+  cls_method_handle_t h_status_update_qos;
+  cls_method_handle_t h_status_get_usage;
 
   cls_register("rbd", &h_class);
   cls_register_cxx_method(h_class, "create",
@@ -5592,6 +6759,64 @@ CLS_INIT(rbd)
   cls_register_cxx_method(h_class, "trash_state_set",
                           CLS_METHOD_RD | CLS_METHOD_WR,
                           trash_state_set, &h_trash_state_set);
+
+  cls_register_cxx_method(h_class, "status_get_version",
+      CLS_METHOD_RD,
+      status_get_version, &h_status_get_version);
+  cls_register_cxx_method(h_class, "status_inc_version",
+      CLS_METHOD_RD | CLS_METHOD_WR,
+      status_inc_version, &h_status_inc_version);
+  cls_register_cxx_method(h_class, "status_list_images",
+      CLS_METHOD_RD,
+      status_list_images, &h_status_list_images);
+  cls_register_cxx_method(h_class, "status_list_snapshots",
+      CLS_METHOD_RD,
+      status_list_snapshots, &h_status_list_snapshots);
+  cls_register_cxx_method(h_class, "status_list_usages",
+      CLS_METHOD_RD,
+      status_list_usages, &h_status_list_usages);
+  cls_register_cxx_method(h_class, "status_add_image",
+      CLS_METHOD_RD | CLS_METHOD_WR,
+      status_add_image, &h_status_add_image);
+  cls_register_cxx_method(h_class, "status_remove_image",
+      CLS_METHOD_RD | CLS_METHOD_WR,
+      status_remove_image, &h_status_remove_image);
+  cls_register_cxx_method(h_class, "status_rename_image",
+      CLS_METHOD_RD | CLS_METHOD_WR,
+      status_rename_image, &h_status_rename_image);
+  cls_register_cxx_method(h_class, "status_flatten_clone",
+      CLS_METHOD_RD | CLS_METHOD_WR,
+      status_flatten_clone, &h_status_flatten_clone);
+  cls_register_cxx_method(h_class, "status_add_child",
+      CLS_METHOD_RD | CLS_METHOD_WR,
+      status_add_child, &h_status_add_child);
+  cls_register_cxx_method(h_class, "status_remove_child",
+      CLS_METHOD_RD | CLS_METHOD_WR,
+      status_remove_child, &h_status_remove_child);
+  cls_register_cxx_method(h_class, "status_update_size",
+      CLS_METHOD_RD | CLS_METHOD_WR,
+      status_update_size, &h_status_update_size);
+  cls_register_cxx_method(h_class, "status_update_state",
+      CLS_METHOD_RD | CLS_METHOD_WR,
+      status_update_state, &h_status_update_state);
+  cls_register_cxx_method(h_class, "status_update_used",
+      CLS_METHOD_RD | CLS_METHOD_WR,
+      status_update_used, &h_status_update_used);
+  cls_register_cxx_method(h_class, "status_add_snapshot",
+      CLS_METHOD_RD | CLS_METHOD_WR,
+      status_add_snapshot, &h_status_add_snapshot);
+  cls_register_cxx_method(h_class, "status_remove_snapshot",
+      CLS_METHOD_RD | CLS_METHOD_WR,
+      status_remove_snapshot, &h_status_remove_snapshot);
+  cls_register_cxx_method(h_class, "status_rename_snapshot",
+      CLS_METHOD_RD | CLS_METHOD_WR,
+      status_rename_snapshot, &h_status_rename_snapshot);
+  cls_register_cxx_method(h_class, "status_update_qos",
+      CLS_METHOD_RD | CLS_METHOD_WR,
+      status_update_qos, &h_status_update_qos);
+  cls_register_cxx_method(h_class, "status_get_usage",
+      CLS_METHOD_RD,
+      status_get_usage, &h_status_get_usage);
 
   return;
 }

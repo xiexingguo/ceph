@@ -42,6 +42,8 @@
 #define RBD_DIRECTORY           "rbd_directory"
 #define RBD_INFO                "rbd_info"
 
+#define RBD_STATUS              "rbd_zstatus"
+
 /*
  * rbd_children object in each pool contains omap entries
  * that map parent (poolid, imageid, snapid) to a list of children

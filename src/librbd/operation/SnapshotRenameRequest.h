@@ -35,6 +35,7 @@ public:
    *
    */
   enum State {
+    STATE_STATUS_UPDATE,
     STATE_RENAME_SNAP
   };
 
@@ -52,6 +53,7 @@ private:
   std::string m_snap_name;
   State m_state;
 
+  void send_status_update();
   void send_rename_snap();
 };
 

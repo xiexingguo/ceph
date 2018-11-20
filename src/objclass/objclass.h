@@ -34,6 +34,8 @@ typedef struct {
 	const char *ver;
 } cls_deps_t;
 
+extern CephContext *cls_cct();
+
 /* class utils */
 extern void *cls_alloc(size_t size);
 extern void cls_free(void *p);
@@ -148,6 +150,7 @@ extern int cls_cxx_map_set_vals(cls_method_context_t hctx,
                                 const std::map<string, bufferlist> *map);
 extern int cls_cxx_map_write_header(cls_method_context_t hctx, bufferlist *inbl);
 extern int cls_cxx_map_remove_key(cls_method_context_t hctx, const string &key);
+extern int cls_cxx_map_remove_keys(cls_method_context_t hctx, const std::set<std::string> *keys);
 extern int cls_cxx_map_update(cls_method_context_t hctx, bufferlist *inbl);
 
 extern int cls_cxx_list_watchers(cls_method_context_t hctx,

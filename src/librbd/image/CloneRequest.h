@@ -124,6 +124,9 @@ private:
   void send_open();
   void handle_open(int r);
 
+  void send_status_add_child();
+  void handle_status_add_child(int r);
+
   void send_set_parent();
   void handle_set_parent(int r);
 

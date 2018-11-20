@@ -1,6 +1,7 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#include <limits>
 #include "cls/rbd/cls_rbd_types.h"
 #include "librbd/operation/SnapshotCreateRequest.h"
 #include "common/dout.h"
@@ -201,6 +202,63 @@ Context *SnapshotCreateRequest<I>::handle_create_snap(int *result) {
     return nullptr;
   }
 
+  send_status_add_snapshot();
+  return nullptr;
+}
+
+template <typename I>
+void SnapshotCreateRequest<I>::send_status_add_snapshot() {
+  I &image_ctx = this->m_image_ctx;
+  CephContext *cct = image_ctx.cct;
+  ldout(cct, 5) << this << " " << __func__ << dendl;
+
+  RWLock::RLocker owner_locker(image_ctx.owner_lock);
+  // should have been canceled prior to releasing lock
+  assert(image_ctx.exclusive_lock == nullptr ||
+         image_ctx.exclusive_lock->is_lock_owner());
+
+  uint64_t used = std::numeric_limits<uint64_t>::max();
+  uint64_t dirty = std::numeric_limits<uint64_t>::max();
+  BitVector<2> om;
+  int r = -1;
+  {
+    RWLock::RLocker snap_locker(image_ctx.snap_lock);
+    RWLock::RLocker object_map_locker(image_ctx.object_map_lock);
+    if (image_ctx.object_map != nullptr) {
+      r = image_ctx.object_map->get_object_map(&om);
+    }
+  }
+
+  if (r == 0) {
+    ObjectMap<I>::calculate_usage(image_ctx, om, &used, &dirty);
+  }
+
+  librados::ObjectWriteOperation op;
+  cls_client::status_add_snapshot(&op, image_ctx.id, m_snap_id, m_snap_name,
+      m_snap_namespace, m_size, used, dirty);
+
+  librados::AioCompletion *rados_completion = create_rados_callback<
+      SnapshotCreateRequest<I>,
+      &SnapshotCreateRequest<I>::handle_status_add_snapshot>(this);
+  r = image_ctx.md_ctx.aio_operate(RBD_STATUS, rados_completion, &op);
+  assert(r == 0);
+  rados_completion->release();
+}
+
+template <typename I>
+Context *SnapshotCreateRequest<I>::handle_status_add_snapshot(int *result) {
+  I &image_ctx = this->m_image_ctx;
+  CephContext *cct = image_ctx.cct;
+  ldout(cct, 5) << this << " " << __func__ << ": r=" << *result << dendl;
+
+  if (*result < 0 && *result != -EOPNOTSUPP && *result != -ENOENT) {
+    save_result(result);
+    send_remove_snapshot();
+    return nullptr;
+  }
+
+  // if image_ctx.object_map == nullptr, we should not complete with *result != 0
+  *result = 0;
   return send_create_object_map();
 }
 
@@ -246,6 +304,37 @@ Context *SnapshotCreateRequest<I>::handle_create_object_map(int *result) {
   }
 
   return this->create_context_finisher(0);
+}
+
+template <typename I>
+void SnapshotCreateRequest<I>::send_remove_snapshot() {
+  I &image_ctx = this->m_image_ctx;
+  CephContext *cct = image_ctx.cct;
+  ldout(cct, 5) << this << " " << __func__ << dendl;
+
+  librados::ObjectWriteOperation op;
+  cls_client::snapshot_remove(&op, m_snap_id);
+
+  librados::AioCompletion *rados_completion = create_rados_callback<
+      SnapshotCreateRequest<I>,
+      &SnapshotCreateRequest<I>::handle_remove_snapshot>(this);
+  int r = image_ctx.md_ctx.aio_operate(image_ctx.header_oid,
+      rados_completion, &op);
+  assert(r == 0);
+  rados_completion->release();
+}
+
+template <typename I>
+Context *SnapshotCreateRequest<I>::handle_remove_snapshot(int *result) {
+  I &image_ctx = this->m_image_ctx;
+  CephContext *cct = image_ctx.cct;
+  ldout(cct, 5) << this << " " << __func__ << ": r=" << *result << dendl;
+
+  assert(m_ret_val < 0);
+  *result = m_ret_val;
+
+  send_release_snap_id();
+  return nullptr;
 }
 
 template <typename I>

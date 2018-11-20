@@ -364,6 +364,46 @@ Context *ResizeRequest<I>::handle_post_block_writes(int *result) {
     return this->create_context_finisher(*result);
   }
 
+  send_status_update_size();
+  return nullptr;
+}
+
+template <typename I>
+void ResizeRequest<I>::send_status_update_size() {
+  I &image_ctx = this->m_image_ctx;
+  CephContext *cct = image_ctx.cct;
+  ldout(cct, 5) << this << " " << __func__ << " "
+                << "original_size=" << m_original_size << ", "
+                << "new_size=" << m_new_size << dendl;;
+
+  // should have been canceled prior to releasing lock
+  RWLock::RLocker owner_locker(image_ctx.owner_lock);
+  assert(image_ctx.exclusive_lock == nullptr ||
+         image_ctx.exclusive_lock->is_lock_owner());
+
+  librados::ObjectWriteOperation op;
+  cls_client::status_update_size(&op, image_ctx.id, m_new_size);
+
+  librados::AioCompletion *rados_completion = create_rados_callback<
+    ResizeRequest<I>, &ResizeRequest<I>::handle_status_update_size>(this);
+  int r = image_ctx.md_ctx.aio_operate(RBD_STATUS, rados_completion, &op);
+  assert(r == 0);
+  rados_completion->release();
+}
+
+template <typename I>
+Context *ResizeRequest<I>::handle_status_update_size(int *result) {
+  I &image_ctx = this->m_image_ctx;
+  CephContext *cct = image_ctx.cct;
+  ldout(cct, 5) << this << " " << __func__ << ": r=" << *result << dendl;
+
+  if (*result < 0 && *result != -EOPNOTSUPP && *result != -ENOENT) {
+    lderr(cct) << "failed to update status: " << cpp_strerror(*result)
+               << dendl;
+    image_ctx.io_work_queue->unblock_writes();
+    return this->create_context_finisher(*result);
+  }
+
   send_update_header();
   return nullptr;
 }

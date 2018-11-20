@@ -217,6 +217,7 @@ struct MockImageCtx {
   MOCK_METHOD2(apply_metadata, int(const std::map<std::string, bufferlist> &,
                                    bool));
   MOCK_METHOD0(qos_set_quota, int());
+  MOCK_METHOD0(disable_status_update, void());
 
   MOCK_CONST_METHOD0(get_stripe_count, uint64_t());
   MOCK_CONST_METHOD0(get_stripe_period, uint64_t());
@@ -324,6 +325,12 @@ struct MockImageCtx {
   bool blkin_trace_all;
   bool enable_alloc_hint;
   bool qos_enabled;
+
+  bool status_update_disabled;
+  double status_update_delay;
+  double status_update_interval;
+  double status_update_skip_delta_ratio;
+  uint64_t status_update_skip_max_count;
 };
 
 } // namespace librbd

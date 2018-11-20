@@ -103,8 +103,14 @@ private:
   void send_create_snap();
   Context *handle_create_snap(int *result);
 
+  void send_status_add_snapshot();
+  Context *handle_status_add_snapshot(int *result);
+
   Context *send_create_object_map();
   Context *handle_create_object_map(int *result);
+
+  void send_remove_snapshot();
+  Context *handle_remove_snapshot(int *result);
 
   void send_release_snap_id();
   Context *handle_release_snap_id(int *result);

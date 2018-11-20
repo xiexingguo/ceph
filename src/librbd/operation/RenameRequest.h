@@ -47,6 +47,7 @@ public:
   enum State {
     STATE_READ_SOURCE_HEADER,
     STATE_WRITE_DEST_HEADER,
+    STATE_STATUS_UPDATE,
     STATE_UPDATE_DIRECTORY,
     STATE_REMOVE_SOURCE_HEADER
   };
@@ -75,6 +76,7 @@ private:
 
   void send_read_source_header();
   void send_write_destination_header();
+  void send_status_update();
   void send_update_directory();
   void send_remove_source_header();
 

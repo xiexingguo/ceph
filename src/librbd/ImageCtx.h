@@ -38,6 +38,8 @@ class SafeTimer;
 
 namespace librbd {
 
+  constexpr uint64_t kInvalidSize = std::numeric_limits<uint64_t>::max();
+
   template <typename> class ExclusiveLock;
   template <typename> class ImageState;
   template <typename> class ImageWatcher;
@@ -217,6 +219,23 @@ namespace librbd {
 
     op_stat_t m_perfstat;
 
+    SafeTimer *m_status_update_timer = nullptr;
+    Mutex m_status_update_timer_lock;
+    Context *m_status_update_callback = nullptr;
+    bool m_status_update_started = false;
+
+    bool m_status_update_disabled = false;      // set by API
+
+    utime_t m_status_update_last_time;
+    uint64_t m_status_update_last_used = 0;
+
+    // w/o m_ preffix to support conf override
+    bool status_update_disabled = false;
+    double status_update_delay = 0;
+    double status_update_interval = 0;
+    double status_update_skip_delta_ratio = 0;
+    uint64_t status_update_skip_max_count = 0;
+
     static bool _filter_metadata_confs(const string &prefix, std::map<string, bool> &configs,
                                        const map<string, bufferlist> &pairs, map<string, bufferlist> *res);
 
@@ -247,6 +266,13 @@ namespace librbd {
     void perf_report_stop();
     void send_report();
     void get_report_data(op_stat_t *rpdata);
+
+    void disable_status_update();
+
+    void status_update_start();
+    void status_update_stop();
+    void status_update();
+    void handle_status_update(int r);
 
     void set_read_flag(unsigned flag);
     int get_read_flags(librados::snap_t snap_id);

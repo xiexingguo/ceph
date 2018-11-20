@@ -190,6 +190,69 @@ typedef struct {
   time_t deferment_end_time;
 } rbd_trash_image_info_t;
 
+typedef enum {
+  RBD_STATUS_IMAGE_STATE_IDLE           = 1 << 0,
+  RBD_STATUS_IMAGE_STATE_MAPPED         = 1 << 1,
+  RBD_STATUS_IMAGE_STATE_TRASH          = 1 << 2,
+  RBD_STATUS_IMAGE_STATE_ALL            = ~0ULL,
+} rbd_status_image_state_t;
+
+typedef enum {
+  RBD_STATUS_SNAPSHOT_NAMESPACE_TYPE_USER      = 0,
+  RBD_STATUS_SNAPSHOT_NAMESPACE_TYPE_GROUP     = 1
+} rbd_status_snapshot_namespace_type_t;
+
+typedef struct {
+  int64_t pool_id;
+  char *image_id;
+} rbd_status_clone_id_t;
+
+typedef struct {
+  int64_t pool_id;
+  char *image_id;
+  uint64_t snapshot_id;
+} rbd_status_parent_id_t;
+
+typedef struct {
+  time_t create_timestamp;
+  rbd_status_snapshot_namespace_type_t namespace_type;
+  char *name;
+  char *image_id;
+  uint64_t id;
+  uint64_t size;
+  uint64_t used;
+  uint64_t dirty;
+  uint64_t clones_count;
+  rbd_status_clone_id_t *clone_ids;
+} rbd_status_snapshot_t;
+
+typedef struct {
+  uint64_t state;
+  time_t create_timestamp;
+  rbd_status_parent_id_t parent;
+  int64_t data_pool_id;
+  char *name;
+  char *id;
+  uint8_t order;
+  uint64_t stripe_unit;
+  uint64_t stripe_count;
+  uint64_t size;
+  uint64_t used;
+  int64_t qos_iops;
+  int64_t qos_bps;
+  int64_t qos_reservation;
+  int64_t qos_weight;
+  uint64_t snapshots_count;
+  uint64_t *snapshot_ids;
+} rbd_status_image_t;
+
+typedef struct {
+  uint64_t state;
+  char *id;
+  uint64_t size;
+  uint64_t used;
+} rbd_status_usage_t;
+
 CEPH_RBD_API void rbd_image_options_create(rbd_image_options_t* opts);
 CEPH_RBD_API void rbd_image_options_destroy(rbd_image_options_t opts);
 CEPH_RBD_API int rbd_image_options_set_string(rbd_image_options_t opts,
@@ -861,6 +924,26 @@ CEPH_RBD_API int rbd_qos_get(rbd_image_t image,
 CEPH_RBD_API int rbd_qos_del(rbd_image_t image, int flag);
 
 CEPH_RBD_API void rbd_notify_update(rbd_image_t image);
+CEPH_RBD_API int rbd_status_get_version(rados_ioctx_t io, uint64_t *version);
+CEPH_RBD_API int rbd_status_inc_version(rados_ioctx_t io, uint64_t version);
+CEPH_RBD_API int rbd_status_list_images(rados_ioctx_t io,
+    const char *start, size_t max,
+    rbd_status_image_t *images, size_t *size);
+CEPH_RBD_API void rbd_status_list_images_cleanup(rbd_status_image_t *images,
+    size_t size);
+CEPH_RBD_API int rbd_status_list_snapshots(rados_ioctx_t io,
+    uint64_t start, size_t max,
+    rbd_status_snapshot_t *snapshots, size_t *size);
+CEPH_RBD_API void rbd_status_list_snapshots_cleanup(rbd_status_snapshot_t *snapshots,
+    size_t size);
+CEPH_RBD_API int rbd_status_list_usages(rados_ioctx_t io,
+    const char *start, size_t max,
+    rbd_status_usage_t *usages, size_t *size);
+CEPH_RBD_API void rbd_status_list_usages_cleanup(rbd_status_usage_t *usages,
+    size_t size);
+CEPH_RBD_API int rbd_status_get_usage(rbd_image_t image,
+    rbd_status_usage_t *usage);
+CEPH_RBD_API void rbd_disable_status_update(rbd_image_t image);
 
 #ifdef __cplusplus
 }

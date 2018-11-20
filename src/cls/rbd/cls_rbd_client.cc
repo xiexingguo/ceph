@@ -2146,5 +2146,288 @@ namespace librbd {
       return ioctx->operate(RBD_TRASH, &op);
     }
 
+    int status_get_version(librados::IoCtx *ioctx, const std::string &oid,
+        uint64_t *version)
+    {
+      bufferlist in_bl;
+      librados::ObjectReadOperation op;
+      op.exec("rbd", "status_get_version", in_bl);
+
+      bufferlist out_bl;
+      int r = ioctx->operate(oid, &op, &out_bl);
+      if (r < 0) {
+        return r;
+      }
+
+      bufferlist::iterator iter = out_bl.begin();
+      try {
+        ::decode(*version, iter);
+      } catch (const buffer::error &err) {
+        return -EBADMSG;
+      }
+      return 0;
+    }
+
+    int status_inc_version(librados::IoCtx *ioctx, const std::string &oid,
+        uint64_t version)
+    {
+      bufferlist in_bl;
+      ::encode(version, in_bl);
+      librados::ObjectWriteOperation op;
+      op.exec("rbd", "status_inc_version", in_bl);
+
+      int r = ioctx->operate(oid, &op);
+      if (r < 0) {
+        return r;
+      }
+      return 0;
+    }
+
+    int status_list_images(librados::IoCtx *ioctx, const std::string &oid,
+        const std::string &start, uint64_t max_return,
+        std::vector<cls::rbd::StatusImage> *statuses)
+    {
+      bufferlist in_bl;
+      ::encode(start, in_bl);
+      ::encode(max_return, in_bl);
+      librados::ObjectReadOperation op;
+      op.exec("rbd", "status_list_images", in_bl);
+
+      bufferlist out_bl;
+      int r = ioctx->operate(oid, &op, &out_bl);
+      if (r < 0) {
+        return r;
+      }
+
+      bufferlist::iterator iter = out_bl.begin();
+      try {
+        ::decode(*statuses, iter);
+      } catch (const buffer::error &err) {
+        return -EBADMSG;
+      }
+      return 0;
+    }
+
+    int status_list_snapshots(librados::IoCtx *ioctx, const std::string &oid,
+        uint64_t start, uint64_t max_return,
+        std::vector<cls::rbd::StatusSnapshot> *snapshots)
+    {
+      bufferlist in_bl;
+      ::encode(start, in_bl);
+      ::encode(max_return, in_bl);
+      librados::ObjectReadOperation op;
+      op.exec("rbd", "status_list_snapshots", in_bl);
+
+      bufferlist out_bl;
+      int r = ioctx->operate(oid, &op, &out_bl);
+      if (r < 0) {
+        return r;
+      }
+
+      bufferlist::iterator iter = out_bl.begin();
+      try {
+        ::decode(*snapshots, iter);
+      } catch (const buffer::error &err) {
+        return -EBADMSG;
+      }
+      return 0;
+    }
+
+    int status_list_usages(librados::IoCtx *ioctx, const std::string &oid,
+        const std::string &start, uint64_t max_return,
+        std::vector<cls::rbd::StatusUsage> *usages)
+    {
+      bufferlist in_bl;
+      ::encode(start, in_bl);
+      ::encode(max_return, in_bl);
+      librados::ObjectReadOperation op;
+      op.exec("rbd", "status_list_usages", in_bl);
+
+      bufferlist out_bl;
+      int r = ioctx->operate(oid, &op, &out_bl);
+      if (r < 0) {
+        return r;
+      }
+
+      bufferlist::iterator iter = out_bl.begin();
+      try {
+        ::decode(*usages, iter);
+      } catch (const buffer::error &err) {
+        return -EBADMSG;
+      }
+      return 0;
+    }
+
+    void status_add_image(librados::ObjectWriteOperation *op,
+        cls::rbd::StatusParentId &pid,
+        const std::string &id,
+        int64_t data_pool_id,
+        const std::string &name, uint8_t order,
+        uint64_t stripe_unit, uint64_t stripe_count, uint64_t size)
+    {
+      bufferlist bl;
+      ::encode(pid, bl);
+      ::encode(id, bl);
+      ::encode(data_pool_id, bl);
+      ::encode(name, bl);
+      ::encode(order, bl);
+      ::encode(stripe_unit, bl);
+      ::encode(stripe_count, bl);
+      ::encode(size, bl);
+      op->exec("rbd", "status_add_image", bl);
+    }
+
+    void status_remove_image(librados::ObjectWriteOperation *op,
+        const std::string &id)
+    {
+      bufferlist bl;
+      ::encode(id, bl);
+      op->exec("rbd", "status_remove_image", bl);
+    }
+
+    void status_rename_image(librados::ObjectWriteOperation *op,
+        const std::string &id, const std::string &name)
+    {
+      bufferlist bl;
+      ::encode(id, bl);
+      ::encode(name, bl);
+      op->exec("rbd", "status_rename_image", bl);
+    }
+
+    void status_flatten_clone(librados::ObjectWriteOperation *op,
+        const std::string &id)
+    {
+      bufferlist bl;
+      ::encode(id, bl);
+      op->exec("rbd", "status_flatten_clone", bl);
+    }
+
+    void status_add_child(librados::ObjectWriteOperation *op,
+        cls::rbd::StatusParentId &pid,
+        int64_t pool_id,
+        const std::string &id)
+    {
+      bufferlist bl;
+      ::encode(pid, bl);
+      ::encode(pool_id, bl);
+      ::encode(id, bl);
+      op->exec("rbd", "status_add_child", bl);
+    }
+
+    void status_remove_child(librados::ObjectWriteOperation *op,
+        cls::rbd::StatusParentId &pid,
+        int64_t pool_id,
+        const std::string &id)
+    {
+      bufferlist bl;
+      ::encode(pid, bl);
+      ::encode(pool_id, bl);
+      ::encode(id, bl);
+      op->exec("rbd", "status_remove_child", bl);
+    }
+
+    void status_update_size(librados::ObjectWriteOperation *op,
+        const std::string &id, uint64_t size)
+    {
+      bufferlist bl;
+      ::encode(id, bl);
+      ::encode(size, bl);
+      op->exec("rbd", "status_update_size", bl);
+    }
+
+    void status_update_state(librados::ObjectWriteOperation *op,
+        const std::string &id, uint64_t state, uint64_t mask)
+    {
+      bufferlist bl;
+      ::encode(id, bl);
+      ::encode(state, bl);
+      ::encode(mask, bl);
+      op->exec("rbd", "status_update_state", bl);
+    }
+
+    void status_update_used(librados::ObjectWriteOperation *op,
+        const std::string &id, uint64_t used)
+    {
+      bufferlist bl;
+      ::encode(id, bl);
+      ::encode(used, bl);
+      op->exec("rbd", "status_update_used", bl);
+    }
+
+    void status_add_snapshot(librados::ObjectWriteOperation *op,
+        const std::string &image_id, uint64_t snap_id,
+        const std::string &snap_name,
+        const cls::rbd::SnapshotNamespace &snap_namespace,
+        uint64_t size,
+        uint64_t used,
+        uint64_t dirty)
+    {
+      bufferlist bl;
+      ::encode(image_id, bl);
+      ::encode(snap_id, bl);
+      ::encode(snap_name, bl);
+      ::encode(cls::rbd::SnapshotNamespaceOnDisk(snap_namespace), bl);
+      ::encode(size, bl);
+      ::encode(used, bl);
+      ::encode(dirty, bl);
+      op->exec("rbd", "status_add_snapshot", bl);
+    }
+
+    void status_remove_snapshot(librados::ObjectWriteOperation *op,
+        const std::string &image_id, uint64_t snap_id)
+    {
+      bufferlist bl;
+      ::encode(image_id, bl);
+      ::encode(snap_id, bl);
+      op->exec("rbd", "status_remove_snapshot", bl);
+    }
+
+    void status_rename_snapshot(librados::ObjectWriteOperation *op,
+        uint64_t snap_id, const std::string &snap_name)
+    {
+      bufferlist bl;
+      ::encode(snap_id, bl);
+      ::encode(snap_name, bl);
+      op->exec("rbd", "status_rename_snapshot", bl);
+    }
+
+    void status_update_qos(librados::ObjectWriteOperation *op,
+        const std::string &image_id, int64_t iops, int64_t bps,
+        int64_t reservation, int64_t weight)
+    {
+      bufferlist bl;
+      ::encode(image_id, bl);
+      ::encode(iops, bl);
+      ::encode(bps, bl);
+      ::encode(reservation, bl);
+      ::encode(weight, bl);
+      op->exec("rbd", "status_update_qos", bl);
+    }
+
+    int status_get_usage(librados::IoCtx *ioctx, const std::string &oid,
+        const std::string &id, uint64_t snapshot_id,
+        cls::rbd::StatusUsage *usage)
+    {
+      bufferlist in_bl;
+      ::encode(id, in_bl);
+      ::encode(snapshot_id, in_bl);
+      librados::ObjectReadOperation op;
+      op.exec("rbd", "status_get_usage", in_bl);
+
+      bufferlist out_bl;
+      int r = ioctx->operate(oid, &op, &out_bl);
+      if (r < 0) {
+        return r;
+      }
+
+      try {
+        bufferlist::iterator iter = out_bl.begin();
+        ::decode(*usage, iter);
+      } catch (const buffer::error &err) {
+        return -EBADMSG;
+      }
+      return 0;
+    }
+
   } // namespace cls_client
 } // namespace librbd

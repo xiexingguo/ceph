@@ -16,6 +16,15 @@
 #include "librbd/operation/SnapshotCreateRequest.cc"
 
 namespace librbd {
+template <>
+class ObjectMap<MockImageCtx> {
+public:
+  static void calculate_usage(MockImageCtx& ictx, BitVector<2>& om,
+      uint64_t *used, uint64_t *dirty) {}
+};
+}
+
+namespace librbd {
 namespace operation {
 
 using ::testing::_;

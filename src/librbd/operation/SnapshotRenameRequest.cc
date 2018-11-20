@@ -54,7 +54,7 @@ journal::Event SnapshotRenameRequest<I>::create_event(uint64_t op_tid) const {
 
 template <typename I>
 void SnapshotRenameRequest<I>::send_op() {
-  send_rename_snap();
+  send_status_update();
 }
 
 template <typename I>
@@ -63,6 +63,13 @@ bool SnapshotRenameRequest<I>::should_complete(int r) {
   CephContext *cct = image_ctx.cct;
   ldout(cct, 5) << this << " " << __func__ << ": state=" << m_state << ", "
                 << "r=" << r << dendl;
+
+  if (m_state == STATE_STATUS_UPDATE) {
+    if (r == -EOPNOTSUPP || r == -ENOENT) {
+      r = 0;
+    }
+  }
+
   if (r < 0) {
     if (r == -EEXIST) {
       ldout(cct, 1) << "snapshot already exists" << dendl;
@@ -70,7 +77,44 @@ bool SnapshotRenameRequest<I>::should_complete(int r) {
       lderr(cct) << "encountered error: " << cpp_strerror(r) << dendl;
     }
   }
-  return true;
+
+  RWLock::RLocker owner_locker(image_ctx.owner_lock);
+  bool finished = false;
+  switch (m_state) {
+  case STATE_STATUS_UPDATE:
+    ldout(cct, 5) << "STATUS_UPDATE" << dendl;
+    send_rename_snap();
+    break;
+  case STATE_RENAME_SNAP:
+    ldout(cct, 5) << "RENAME_SNAP" << dendl;
+    finished = true;
+    break;
+  default:
+    lderr(cct) << "invalid state: " << m_state << dendl;
+    assert(false);
+    break;
+  }
+  return finished;
+}
+
+template <typename I>
+void SnapshotRenameRequest<I>::send_status_update() {
+  I &image_ctx = this->m_image_ctx;
+  assert(image_ctx.owner_lock.is_locked());
+
+  CephContext *cct = image_ctx.cct;
+  ldout(cct, 20) << this << " " << __func__ << dendl;
+
+  m_state = STATE_STATUS_UPDATE;
+
+  librados::ObjectWriteOperation op;
+  cls_client::status_rename_snapshot(&op, static_cast<uint64_t>(m_snap_id),
+      m_snap_name);
+
+  librados::AioCompletion *comp = this->create_callback_completion();
+  int r = image_ctx.md_ctx.aio_operate(RBD_STATUS, comp, &op);
+  assert(r == 0);
+  comp->release();
 }
 
 template <typename I>

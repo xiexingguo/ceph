@@ -27,6 +27,10 @@ void cls_finalize()
   ch = NULL;
 }
 
+CephContext *cls_cct()
+{
+  return ch->cct;
+}
 
 void *cls_alloc(size_t size)
 {
@@ -606,6 +610,20 @@ int cls_cxx_map_remove_key(cls_method_context_t hctx, const string &key)
   to_rm.insert(key);
 
   ::encode(to_rm, update_bl);
+
+  op.op.op = CEPH_OSD_OP_OMAPRMKEYS;
+
+  return (*pctx)->pg->do_osd_ops(*pctx, ops);
+}
+
+int cls_cxx_map_remove_keys(cls_method_context_t hctx, const std::set<std::string> *keys)
+{
+  PrimaryLogPG::OpContext **pctx = (PrimaryLogPG::OpContext **)hctx;
+  vector<OSDOp> ops(1);
+  OSDOp& op = ops[0];
+  bufferlist& update_bl = op.indata;
+
+  ::encode(*keys, update_bl);
 
   op.op.op = CEPH_OSD_OP_OMAPRMKEYS;
 
