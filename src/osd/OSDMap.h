@@ -1323,7 +1323,7 @@ public:
 
   int clean_pg_upmaps(
     CephContext *cct,
-    Incremental *pending_inc);
+    Incremental *pending_inc) const;
 
   bool try_pg_upmap(
     CephContext *cct,
@@ -1342,6 +1342,11 @@ public:
     );
 
   int get_osds_by_bucket_name(const string &name, set<int> *osds) const;
+
+  bool have_pg_upmaps(pg_t pg) const {
+    return pg_upmap.count(pg) ||
+      pg_upmap_items.count(pg);
+  }
 
   /*
    * handy helpers to build simple maps...
