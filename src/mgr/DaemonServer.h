@@ -84,6 +84,8 @@ protected:
   Mutex lock;
   MgrDaemonHook *m_daemon_hook = nullptr;
 
+  std::map<string, imageperf_t> imgsmap;
+  SafeTimer timer;
   map<pg_t, int64_t> num_objects_recovered_by_pg;
   set<int> last_adjusted_osds;
   set<int> last_adjusted_primaries;
@@ -99,7 +101,8 @@ protected:
     const map<string,cmd_vartype>& cmdmap,
     const map<string,string>& param_str_map,
     const MonCommand *this_cmd);
-
+  void perf_stat_start();
+  void calc_perf();
 
 private:
   friend class ReplyOnFinish;
@@ -116,7 +119,6 @@ private:
 public:
   int init(uint64_t gid, entity_addr_t client_addr);
   void shutdown();
-  void tick();
 
   entity_addr_t get_myaddr() const;
 
@@ -156,6 +158,8 @@ public:
   virtual const char** get_tracked_conf_keys() const override;
   virtual void handle_conf_change(const struct md_config_t *conf,
                           const std::set <std::string> &changed) override;
+  void dump_imgsperf(Formatter *f, set<string> &who);
+  void dump_imgsperf(ostream& ss, set<string> &who);
   void dump_cluster_state(Formatter *f);
   void send_reset_recovery_limits(
     int who,
