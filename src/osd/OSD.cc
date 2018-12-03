@@ -5300,8 +5300,7 @@ void OSD::heartbeat()
     i->second.last_tx = now;
     if (i->second.first_tx == utime_t())
       i->second.first_tx = now;
-    i->second.ping_history[now] = make_pair(deadline,
-      HeartbeatInfo::HEARTBEAT_MAX_CONN);
+    i->second.ping_history[now] = make_pair(deadline, HEARTBEAT_MAX_CONN);
     dout(30) << "heartbeat sending ping to osd." << peer << dendl;
     i->second.con_back->send_message(new MOSDPing(monc->get_fsid(),
 					  service.get_osdmap()->get_epoch(),
