@@ -1249,6 +1249,8 @@ protected:
 
   const double OSD_TICK_INTERVAL = { 1.0 };
   double get_tick_interval() const;
+  // number of connections we send and receive heartbeat pings/replies
+  const int HEARTBEAT_MAX_CONN = 2;
 
   AuthAuthorizeHandlerRegistry *authorize_handler_cluster_registry;
   AuthAuthorizeHandlerRegistry *authorize_handler_service_registry;
@@ -1513,8 +1515,6 @@ private:
     utime_t last_rx_front;  ///< last time we got a ping reply on the front side
     utime_t last_rx_back;   ///< last time we got a ping reply on the back side
     epoch_t epoch;      ///< most recent epoch we wanted this peer
-    /// number of connections we send and receive heartbeat pings/replies
-    const static int HEARTBEAT_MAX_CONN = 2;
     /// history of inflight pings, arranging by timestamp we sent
     /// send time -> deadline -> remaining replies
     map<utime_t, pair<utime_t, int>> ping_history;
