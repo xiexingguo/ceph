@@ -29,7 +29,8 @@ bool check_alldigital(string str)
 {
   for (size_t i = 0; i < str.size(); i++) {
     int tmp = (int)str[i];
-    if (tmp >= 48 && tmp <= 57) {
+    if ((tmp >= '0' && tmp <= '9') ||
+         tmp == '-' || tmp == '\\') {
       continue;
     } else {
       return false;
@@ -53,25 +54,26 @@ int get_qos_value(const po::variables_map &vm, int &qosr, int &qosw, int &qosl, 
                 << "\", must be decimal numeric." << std::endl;
       return -EINVAL;
     }
-    vals.push_back(val);
+    auto pos = val.find_last_of('\\');
+    if (pos != string::npos)
+      vals.push_back(val.substr(pos + 1));
+    else
+      vals.push_back(val);
   }
 
   qosr = std::stoi(vals[0], nullptr);
   qosw = std::stoi(vals[1], nullptr);
   qosl = std::stoi(vals[2], nullptr);
   qosb = std::stoi(vals[3], nullptr);
-  if (qosr < 0 || qosw < 0 || qosl < 0 || qosb < 0) {
-    std::cerr << "error: qos spec should not be negative value" << std::endl;
+  if (qosr < -1 || qosw < -1 || qosl < -1 || qosb < -1) {
+    std::cerr << "error: invalid qos spec" << std::endl;
     return -EINVAL;
   }
-  if (qosl > 0 && qosl < qosr) {
+  if (qosl != -1 && qosl < qosr) {
     std::cerr << "error: qos resevation should not greater than limit" << std::endl;
     return -EINVAL;
   }
-  if (qosr == 0 && qosw == 0) {
-    std::cerr << "error: can not set both resevation and weight to zero" << std::endl;
-    return -EINVAL;
-  }
+
   return 0;
 }
 

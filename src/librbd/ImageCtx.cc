@@ -1332,16 +1332,33 @@ struct C_InvalidateCache : public Context {
     return 0;
   }
 
-  void ImageCtx::get_qos_need_to_update(int *rsv,
-                                        int *wgt, int *lmt, int *bdw) {
+  void ImageCtx::prepare_to_update(int *rsv,
+                                   int *wgt, int *lmt, int *bdw) {
     assert(rsv != nullptr && wgt != nullptr &&
            lmt != nullptr && bdw != nullptr);
 
-    // -1 means no need to update, otherwise go to update
-    *rsv = (client_qos_reservation != *rsv) ? *rsv : -1;
+    *wgt = cct->_conf->rbd_client_qos_weight; // always use origin weight
+    // -1 means need not to update, otherwise go to update
+    if (*rsv == -1) {
+      *rsv = 0;
+      *wgt |= QOS_FLAG_RSV;
+    } else {
+      *rsv = (client_qos_reservation != *rsv) ? *rsv : -1;
+    }
+    if (*lmt == -1 || *lmt == 0) {
+      *lmt += 1;
+      *wgt |= QOS_FLAG_LMT;
+    } else {
+      *lmt = (client_qos_limit != *lmt) ? *lmt : -1;
+    }
+    if (*bdw == -1 || *bdw == 0) {
+      *bdw = (*bdw == -1 ? 0 : 2048);
+      *wgt |= QOS_FLAG_BDW;
+    } else {
+      *bdw = (client_qos_bandwidth != *bdw) ? *bdw : -1;
+    }
+
     *wgt = (client_qos_weight != *wgt) ? *wgt : -1;
-    *lmt = (client_qos_limit != *lmt) ? *lmt : -1;
-    *bdw = (client_qos_bandwidth != *bdw) ? *bdw : -1;
   }
 
 }

@@ -2439,15 +2439,15 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
     }
   }
 
-  int qos_param_check(int reservation, int weight, int limit, int bandwidth) {
-    if (reservation < 0 && weight < 0 && limit < 0
-        && bandwidth < 0) {
+  int qos_param_check(ImageCtx *ictx,
+                      int reservation, int weight, int limit, int bandwidth) {
+    if (reservation < -1 && weight < -1 && limit < -1
+        && bandwidth < -1) {
+      ldout(ictx->cct, 0) << "invalid qos, must be greater than -1." << dendl;
       return -EINVAL;
     }
-    if (limit > 0 && reservation > limit) {
-      return -EINVAL;
-    }
-    if (reservation == 0 && weight == 0) {
+    if (limit != -1 && reservation > limit) {
+      ldout(ictx->cct, 0) << "invalid qos, reservation > limit" << dendl;
       return -EINVAL;
     }
     return 0;
@@ -2466,12 +2466,12 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
   int qos_spec_set(ImageCtx *ictx,
                        int rsv, int wgt, int lmt, int bdw)
   {
-    int r = qos_param_check(rsv, wgt, lmt, bdw);
+    int r = qos_param_check(ictx, rsv, wgt, lmt, bdw);
     if (r < 0) {
       return r;
     }
 
-    ictx->get_qos_need_to_update(&rsv, &wgt, &lmt, &bdw);
+    ictx->prepare_to_update(&rsv, &wgt, &lmt, &bdw);
     r = ictx->operations->qos_update(rsv, wgt, lmt, bdw);
     if (r < 0) {
       return r;
@@ -2485,11 +2485,22 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
                        int *mflag)
   {
     string srsv, swgt, slmt, sbdw;
-    if (!rsv && !wgt && !lmt && !bdw) {
+    if (!wgt) {
       return -EINVAL;
     }
     if (mflag) {
       *mflag = 0;
+    }
+
+    if (librbd::metadata_get(ictx, QOS_MWGT, &swgt) < 0) {
+      if (ictx->cct->_conf != NULL) {
+        *wgt = ictx->cct->_conf->rbd_client_qos_weight;
+      }
+    } else {
+      *wgt = std::stoi(swgt, nullptr);
+      if (mflag) {
+        *mflag |= QOS_FLAG_WGT;
+      }
     }
 
     if (rsv) {
@@ -2503,17 +2514,12 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
           *mflag |= QOS_FLAG_RSV;
         }
       }
-    }
-
-    if (wgt) {
-      if (librbd::metadata_get(ictx, QOS_MWGT, &swgt) < 0) {
-        if (ictx->cct->_conf != NULL) {
-          *wgt = ictx->cct->_conf->rbd_client_qos_weight;
-        }
-      } else {
-        *wgt = std::stoi(swgt, nullptr);
-        if (mflag) {
-          *mflag |= QOS_FLAG_WGT;
+      ldout(ictx->cct, 10) << "reservation=" << *rsv << dendl;
+      if (*rsv == 0) {
+        if (*wgt & QOS_FLAG_RSV) {
+          *rsv = -1;
+        } else if (!(*mflag & QOS_FLAG_WGT)) {
+          *rsv = -1;
         }
       }
     }
@@ -2529,6 +2535,14 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
           *mflag |= QOS_FLAG_LMT;
         }
       }
+      ldout(ictx->cct, 10) << "limit=" << *lmt << dendl;
+      if (*lmt == 0 || *lmt == 1) {
+        if (*wgt & QOS_FLAG_LMT) {
+          *lmt -= 1;
+        } else if (!(*mflag & QOS_FLAG_WGT)) {
+          *lmt -= 1;
+        }
+      }
     }
 
     if (bdw) {
@@ -2540,6 +2554,14 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
         *bdw = std::stoi(sbdw, nullptr);
         if (mflag) {
           *mflag |= QOS_FLAG_BDW;
+        }
+      }
+      ldout(ictx->cct, 10) << "bandwidth=" << *lmt << dendl;
+      if (*bdw == 0 || *bdw == 2048) {
+        if (*wgt & QOS_FLAG_BDW) {
+          *bdw = (*bdw == 0 ? -1 : 0);
+        } else if (!(*mflag & QOS_FLAG_WGT)) {
+          *bdw = (*bdw == 0 ? -1 : 0);
         }
       }
     }

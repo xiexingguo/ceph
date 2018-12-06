@@ -247,7 +247,7 @@ namespace librbd {
     void perf_report_stop();
     void send_report();
     void get_report_data(op_stat_t *rpdata);
-    void get_qos_need_to_update(int *rsv, int *wgt, int *lmt, int *bdw);
+    void prepare_to_update(int *rsv, int *wgt, int *lmt, int *bdw);
 
     void set_read_flag(unsigned flag);
     int get_read_flags(librados::snap_t snap_id);
