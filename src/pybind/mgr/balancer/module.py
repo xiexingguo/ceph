@@ -657,7 +657,7 @@ class Module(MgrModule):
                 'objects': {},
                 'bytes': {},
             }
-            for osd in pe.target_by_root[root].iterkeys():
+            for osd in pe.target_by_root[root]:
                 actual_by_root[root]['pgs'][osd] = 0
                 actual_by_root[root]['objects'][osd] = 0
                 actual_by_root[root]['bytes'][osd] = 0
@@ -681,7 +681,7 @@ class Module(MgrModule):
             objects_by_osd = {}
             bytes_by_osd = {}
             for root in pe.pool_roots[pool]:
-                for osd in pe.target_by_root[root].iterkeys():
+                for osd in pe.target_by_root[root]:
                     pgs_by_osd[osd] = 0
                     objects_by_osd[osd] = 0
                     bytes_by_osd[osd] = 0
@@ -741,7 +741,7 @@ class Module(MgrModule):
                 'objects': objects,
                 'bytes': bytes,
             }
-        for root in pe.total_by_root.iterkeys():
+        for root in pe.total_by_root:
             pe.count_by_root[root] = {
                 'pgs': {
                     k: float(v)
@@ -964,7 +964,7 @@ class Module(MgrModule):
         overlap = {}
         root_ids = {}
         for root, wm in six.iteritems(pe.target_by_root):
-            for osd in wm.iterkeys():
+            for osd in wm:
                 if osd in visited:
                     overlap[osd] = 1
                 visited[osd] = 1
