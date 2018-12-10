@@ -2498,6 +2498,7 @@ extern "C" int rbd_trash_list(rados_ioctx_t p, rbd_trash_image_info_t *entries,
   TracepointProvider::initialize<tracepoint_traits>(get_cct(io_ctx));
   tracepoint(librbd, trash_list_enter,
              io_ctx.get_pool_name().c_str(), io_ctx.get_id());
+  memset(entries, 0, sizeof(*entries) * *num_entries);
 
   vector<librbd::trash_image_info_t> cpp_entries;
   int r = librbd::trash_list(io_ctx, cpp_entries);
@@ -3178,6 +3179,7 @@ extern "C" int rbd_lock_get_owners(rbd_image_t image,
 {
   librbd::ImageCtx *ictx = reinterpret_cast<librbd::ImageCtx*>(image);
   tracepoint(librbd, lock_get_owners_enter, ictx);
+  memset(lock_owners, 0, sizeof(*lock_owners) * *max_lock_owners);
   std::list<std::string> lock_owner_list;
   int r = librbd::lock_get_owners(ictx, lock_mode, &lock_owner_list);
   if (r >= 0) {
@@ -3483,6 +3485,7 @@ extern "C" int rbd_list_children2(rbd_image_t image,
   vector<librbd::child_info_t> cpp_children;
   librbd::ImageCtx *ictx = (librbd::ImageCtx *)image;
   tracepoint(librbd, list_children_enter, ictx, ictx->name.c_str(), ictx->snap_name.c_str(), ictx->read_only);
+  memset(children, 0, sizeof(*children) * *max_children);
 
   if (!max_children) {
     tracepoint(librbd, list_children_exit, -EINVAL);
