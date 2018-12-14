@@ -112,15 +112,24 @@ class StandbyModule(MgrStandbyModule):
         module = self
 
         class Root(object):
-            @cherrypy.expose
-            def default(self, *args, **kwargs):
-                active_uri = module.get_active_uri()
-                if active_uri:
-                    log.info("Redirecting to active '{0}'".format(active_uri + "/".join(args)))
-                    raise cherrypy.HTTPRedirect(active_uri + "/".join(args))
-                else:
-                    template = env.get_template("standby.html")
-                    return template.render(delay=5)
+             def _redirect_http(self, *args, **kwargs):
+                 active_uri = module.get_active_uri()
+                 if active_uri:
+                     url = active_uri + "/".join(args)
+                     log.info("Redirecting to active '{0}'".format(url))
+                     raise cherrypy.HTTPRedirect(url)
+                 else:
+                     raise cherrypy.HTTPError(503)
+
+             @cherrypy.expose
+             @cherrypy.tools.json_out()
+             def toplevel_data(self):
+                 return self._redirect_http()
+
+             @cherrypy.expose
+             @cherrypy.tools.json_out()
+             def rbd_pool_data(self, pool_name):
+                 return self._redirect_http(pool_name)
 
         cherrypy.tree.mount(Root(), url_prefix, {})
         log.info("Starting engine...")
