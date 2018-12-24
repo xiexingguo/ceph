@@ -777,7 +777,7 @@ bool DaemonServer::handle_command(MCommand *m)
     // validate user's permissions for requested command
     is_allowed = _allowed_command(session, mgr_cmd->module,
       prefix, cmdctx->cmdmap,  param_str_map, mgr_cmd);
-    cmd_is_rw = (mgr_cmd->requires_perm('w') || mgr_cmd->requires_perm('x'));
+    cmd_is_rw = mgr_cmd->requires_perm('w');
   }
   if (!is_allowed) {
     dout(1) << " access denied" << dendl;
