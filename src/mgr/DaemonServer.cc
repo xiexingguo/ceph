@@ -789,7 +789,7 @@ bool DaemonServer::handle_command(MCommand *m)
       cmdctx->reply(-EACCES, ss);
       return true;
     }
-    cmd_is_rw = (mgr_cmd->requires_perm('w') || mgr_cmd->requires_perm('x'));
+    cmd_is_rw = mgr_cmd->requires_perm('w');
   }
 
   dout(cmd_is_rw ? 0 : 5) << "from='" << session->inst << "' "

@@ -3161,8 +3161,7 @@ void Monitor::handle_command(MonOpRequestRef op)
            << "' module='" << module
            << "' service='" << service << "'" << dendl;
 
-  bool cmd_is_rw =
-    (mon_cmd->requires_perm('w') || mon_cmd->requires_perm('x'));
+  bool cmd_is_rw = mon_cmd->requires_perm('w');
 
   // validate user's permissions for requested command
   map<string,string> param_str_map;
