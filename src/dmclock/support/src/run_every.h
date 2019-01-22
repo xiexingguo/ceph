@@ -62,6 +62,8 @@ namespace crimson {
     ~RunEvery();
 
     void join();
+    // update wait period in milliseconds
+    void try_update(milliseconds _wait_period);
 
   protected:
 
