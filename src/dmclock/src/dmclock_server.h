@@ -1339,10 +1339,14 @@ namespace crimson {
 	    }
 	  } // for
 
-          if (erased_num < erase_max) {
+          auto wperiod = check_time;
+          if (erased_num >= erase_max) {
+            wperiod = duration_cast<milliseconds>(aggressive_check_time);
+          } else {
             // clean finished, refresh
             last_erase_point = 0;
           }
+          cleaning_job->try_update(wperiod);
 	} // if
       } // do_clean
 
