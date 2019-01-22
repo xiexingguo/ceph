@@ -68,6 +68,11 @@ namespace crimson {
       std::numeric_limits<double>::lowest();
     constexpr uint tag_modulo = 1000000;
 
+    constexpr auto standard_idle_age  = std::chrono::seconds(300);
+    constexpr auto standard_erase_age = std::chrono::seconds(600);
+    constexpr auto standard_check_time = std::chrono::seconds(60);
+    constexpr auto aggressive_check_time = std::chrono::seconds(5);
+
     struct ClientInfo {
       double reservation;  // minimum
       double weight;       // proportional
@@ -1400,9 +1405,9 @@ namespace crimson {
       PullPriorityQueue(typename super::ClientInfoFunc _client_info_f,
 			bool _allow_limit_break = false) :
 	PullPriorityQueue(_client_info_f,
-			  std::chrono::minutes(10),
-			  std::chrono::minutes(15),
-			  std::chrono::minutes(6),
+			  standard_idle_age,
+			  standard_erase_age,
+			  standard_check_time,
 			  _allow_limit_break)
       {
 	// empty
@@ -1645,9 +1650,9 @@ namespace crimson {
 	PushPriorityQueue(_client_info_f,
 			  _can_handle_f,
 			  _handle_f,
-			  std::chrono::minutes(10),
-			  std::chrono::minutes(15),
-			  std::chrono::minutes(6),
+			  standard_idle_age,
+			  standard_erase_age,
+			  standard_check_time,
 			  _allow_limit_break)
       {
 	// empty
