@@ -662,15 +662,6 @@ class Module(MgrModule):
 
                 status, value = rbd_ls.get()
 
-                interval = 5
-
-                wait = interval - rbd_ls.latency
-                def wait_and_load():
-                    time.sleep(wait)
-                    rbd_ls.get()
-
-                threading.Thread(target=wait_and_load).start()
-
                 assert status != RbdLs.VALUE_NONE  # FIXME bubble status up to UI
                 return value
 
