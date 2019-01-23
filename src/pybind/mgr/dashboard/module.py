@@ -662,8 +662,7 @@ class Module(MgrModule):
 
                 status, value = rbd_ls.get()
 
-                assert status != RbdLs.VALUE_NONE  # FIXME bubble status up to UI
-                return value
+                return value if value is not None else []
 
             @cherrypy.expose
             def rbd_pool(self, pool_name):
