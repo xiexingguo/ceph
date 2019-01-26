@@ -940,7 +940,7 @@ void ECBackend::handle_sub_write(
   if (!op.temp_added.empty()) {
     add_temp_objs(op.temp_added);
   }
-  if (op.backfill) {
+  if (op.backfill_or_async_recovery) {
     for (set<hobject_t>::iterator i = op.temp_removed.begin();
 	 i != op.temp_removed.end();
 	 ++i) {
@@ -960,7 +960,7 @@ void ECBackend::handle_sub_write(
     op.updated_hit_set_history,
     op.trim_to,
     op.roll_forward_to,
-    !op.backfill,
+    !op.backfill_or_async_recovery,
     localt);
 
   PrimaryLogPG *_rPG = dynamic_cast<PrimaryLogPG *>(get_parent());
