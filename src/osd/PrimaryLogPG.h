@@ -402,18 +402,7 @@ public:
 
   bool should_send_op(
     pg_shard_t peer,
-    const hobject_t &hoid) override {
-    if (peer == get_primary())
-      return true;
-    assert(peer_info.count(peer));
-    bool should_send =
-      hoid.pool != (int64_t)info.pgid.pool() ||
-      hoid <= last_backfill_started ||
-      hoid <= peer_info[peer].last_backfill;
-    if (!should_send)
-      assert(is_backfill_targets(peer));
-    return should_send;
-  }
+    const hobject_t &hoid) override;
   
   void update_peer_last_complete_ondisk(
     pg_shard_t fromosd,
