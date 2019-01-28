@@ -280,9 +280,9 @@ void Monitor::do_admin_command(string command, cmdmap_t& cmdmap, string format,
                     command == "ops" ||
                     command == "sessions");
 
-  (read_only ? audit_clog->debug() : audit_clog->info())
+  dout(read_only ? 5 : 0)
     << "from='admin socket' entity='admin socket' "
-    << "cmd='" << command << "' args=" << args << ": dispatch";
+    << "cmd='" << command << "' args=" << args << ": dispatch" << dendl;
 
   if (command == "mon_status") {
     get_mon_status(f.get(), ss);
@@ -330,19 +330,19 @@ void Monitor::do_admin_command(string command, cmdmap_t& cmdmap, string format,
   } else {
     assert(0 == "bad AdminSocket command binding");
   }
-  (read_only ? audit_clog->debug() : audit_clog->info())
+  dout(read_only ? 5 : 0)
     << "from='admin socket' "
     << "entity='admin socket' "
     << "cmd=" << command << " "
-    << "args=" << args << ": finished";
+    << "args=" << args << ": finished" << dendl;
   return;
 
 abort:
-  (read_only ? audit_clog->debug() : audit_clog->info())
+  dout(read_only ? 5 : 0)
     << "from='admin socket' "
     << "entity='admin socket' "
     << "cmd=" << command << " "
-    << "args=" << args << ": aborted";
+    << "args=" << args << ": aborted" << dendl;
 }
 
 void Monitor::handle_signal(int signum)
