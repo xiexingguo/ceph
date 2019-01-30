@@ -1876,7 +1876,6 @@ void DaemonServer::send_reset_recovery_limits(
 
 void DaemonServer::clear_recovery_limits()
 {
-  num_objects_recovered_by_pg.clear();
   for (auto o : last_adjusted_osds) {
     uint8_t options = OSD_RESET_RECOVERY_BANDWIDTH;
     auto it = last_adjusted_primaries.find(o);
@@ -1924,24 +1923,17 @@ void DaemonServer::maybe_reset_recovery_limits()
       auto stat = ps.second;
       if ((stat.state & PG_STATE_BACKFILLING) != PG_STATE_BACKFILLING)
         continue;
-      auto num_objects_recovered = num_objects_recovered_by_pg[ps.first] -
-        stat.stats.sum.num_objects_recovered;
-      num_objects_recovered_by_pg[ps.first] =
-        stat.stats.sum.num_objects_recovered;
-      if (num_objects_recovered < 0)
-        num_objects_recovered = 0;
-      auto num_objects_to_recover = stat.stats.sum.num_objects -
-        num_objects_recovered;
+      auto num_objects_to_recover = std::max((int64_t)0, std::min(stat.stats.sum.num_objects,
+        stat.stats.sum.num_objects_degraded + stat.stats.sum.num_objects_misplaced));
+
       if (!stat.acting.empty()) {
         auto acting_primary = *(stat.acting.begin());
-        num_objects_to_recover_by_primary[acting_primary] +=
-          num_objects_to_recover;
+        num_objects_to_recover_by_primary[acting_primary] += num_objects_to_recover;
       }
       for (auto u: stat.up) {
-        if (std::find(stat.acting.begin(), stat.acting.end(), u) !=
-            stat.acting.end())
-          continue;
-        num_objects_to_recover_by_osd[u] += num_objects_to_recover;
+        if (std::find(stat.acting.begin(), stat.acting.end(), u) == stat.acting.end()) {
+          num_objects_to_recover_by_osd[u] += num_objects_to_recover;
+        }
       }
     }
   });
@@ -1953,6 +1945,7 @@ void DaemonServer::maybe_reset_recovery_limits()
   }
 
   if (!any_backfilling_pgs) {
+    clear_recovery_limits();
     dout(10) << "no backfilling PGs, cancelling" << dendl;
     return;
   }
@@ -2004,7 +1997,7 @@ void DaemonServer::maybe_reset_recovery_limits()
                << dendl;
       for (auto &o : num_objects_to_recover_by_osd) {
         auto who = o.first;
-        dout(0) << "aggressively reset osd." << who << "'s"
+        dout(0) << "aggressively reset osd." << who << "'s "
                 << "recovery bandwidth into " << max_adjustment_factor << "x"
                 << ", and can be promoted to "
                 << max_aggressive_adjustment_factor << "x when appropriate"
@@ -2042,7 +2035,8 @@ void DaemonServer::maybe_reset_recovery_limits()
       factor = std::max(factor, min_adjustment_factor);
       factor = std::min(factor, max_adjustment_factor);
       dout(0) << "adjust osd." << who
-              << "'s recovery bandwidth into " << factor << "x"
+              << "'s recovery bandwidth into " << factor << "x, "
+              << o.second << "/" << average
               << dendl;
       send_reset_recovery_limits(who, OSD_RESET_RECOVERY_BANDWIDTH, factor);
     }

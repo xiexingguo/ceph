@@ -86,7 +86,6 @@ protected:
 
   std::map<string, imageperf_t> imgsmap;
   SafeTimer timer;
-  map<pg_t, int64_t> num_objects_recovered_by_pg;
   set<int> last_adjusted_osds;
   set<int> last_adjusted_primaries;
 
