@@ -2016,12 +2016,12 @@ void DaemonServer::maybe_reset_recovery_limits()
     }
 
     int64_t total = 0;
-    int64_t average;
     for (auto &o : num_objects_to_recover_by_osd) {
       total += o.second;
     }
-    average = total / osd_num;
-    assert(average > 0);
+    auto average = total / osd_num;
+    if (average == 0)
+      break;
     for (auto &o : num_objects_to_recover_by_osd) {
       auto who = o.first;
       auto factor = o.second / (double)average;
@@ -2088,15 +2088,15 @@ void DaemonServer::maybe_reset_recovery_limits()
     }
 
     int64_t total = 0;
-    int64_t average;
     int64_t min = INT64_MAX;
     for (auto &p : num_objects_to_recover_by_primary) {
       total += p.second;
       if (p.second < min)
         min = p.second;
     }
-    average = total / primary_num;
-    assert(average > 0);
+    auto average = total / primary_num;
+    if (average == 0)
+      break;
     assert(min > 0);
     for (auto &p : num_objects_to_recover_by_primary) {
       auto who = p.first;
