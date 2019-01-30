@@ -628,6 +628,7 @@ void Mgr::tick()
 {
   dout(10) << dendl;
   server.send_report();
+  server.maybe_reset_recovery_limits();
 }
 
 std::vector<MonCommand> Mgr::get_command_set() const

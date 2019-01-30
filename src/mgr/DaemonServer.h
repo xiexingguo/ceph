@@ -88,6 +88,7 @@ protected:
   SafeTimer timer;
   set<int> last_adjusted_osds;
   set<int> last_adjusted_primaries;
+  utime_t last_adjust;
 
   static void _generate_command_map(map<string,cmd_vartype>& cmdmap,
                                     map<string,string> &param_str_map);

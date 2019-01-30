@@ -132,7 +132,7 @@ int DaemonServer::init(uint64_t gid, entity_addr_t client_addr)
   msgr->start();
   msgr->add_dispatcher_tail(this);
 
-  started_at = ceph_clock_now();
+  last_adjust = started_at = ceph_clock_now();
   timer.init();
   perf_stat_start();
 
@@ -1760,7 +1760,6 @@ void DaemonServer::calc_perf() {
 
   Context *callback = new FunctionContext([this](int r){ calc_perf(); });
     timer.add_event_after(calc_interval, callback);
-  maybe_reset_recovery_limits();
 }
 
 void DaemonServer::dump_imgsperf(Formatter *f, set<string> &who) {
@@ -1905,6 +1904,15 @@ void DaemonServer::maybe_reset_recovery_limits()
   bool any_backfilling_pgs = false;
   map<int, int64_t> num_objects_to_recover_by_osd;
   map<int, int64_t> num_objects_to_recover_by_primary;
+  auto now = ceph_clock_now();
+  auto conf = g_ceph_context->_conf;
+  auto interval = conf->get_val<int64_t>("mgr_recovery_balancer_adjust_interval");
+  if (interval == 0 ||  // set 0 to disable adjustment
+      now - last_adjust < interval) {
+    return;
+  }
+  last_adjust = now;
+
   // collect pg backfilling info
   cluster_state.with_pgmap([&](const PGMap& pg_map) {
     int num_active_clean = 0;
@@ -1950,7 +1958,6 @@ void DaemonServer::maybe_reset_recovery_limits()
     return;
   }
 
-  auto conf = g_ceph_context->_conf;
   auto min_objects = conf->get_val<int64_t>(
     "mgr_recovery_balancer_min_objects");
   if (min_objects < 0) {
