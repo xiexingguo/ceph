@@ -9829,8 +9829,9 @@ void OSD::handle_reset_recovery_limits(Message *m)
       derr << __func__ << " unable to parse bandwidth:" << bandwidth << dendl;
       goto out;
     }
-    auto baseline = default_value * msg->bandwidth_factor;
-    auto aggressive = default_value * msg->aggressive_factor;
+    // round to nearest integer
+    auto baseline = lround(default_value * msg->bandwidth_factor);
+    auto aggressive = lround(default_value * msg->aggressive_factor);
     stringstream ss;
     if (load_balancer.can_promote_recovery() &&
         baseline > default_value &&
