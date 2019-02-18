@@ -61,10 +61,10 @@ namespace crimson {
     class Iterator {
       friend IndIntruHeap<I, T, heap_info, C, K>;
 
-      IndIntruHeap<I, T, heap_info, C, K>& heap;
+      IndIntruHeap<I, T, heap_info, C, K>* heap;
       HeapIndex                            index;
 
-      Iterator(IndIntruHeap<I, T, heap_info, C, K>& _heap, HeapIndex _index) :
+      Iterator(IndIntruHeap<I, T, heap_info, C, K>* _heap, HeapIndex _index) :
 	heap(_heap),
 	index(_index)
       {
@@ -99,14 +99,14 @@ namespace crimson {
       }
 
       Iterator& operator++() {
-	if (index <= heap.count) {
+	if (index <= heap->count) {
 	  ++index;
 	}
 	return *this;
       }
 
       bool operator==(const Iterator& other) const {
-	return &heap == &other.heap && index == other.index;
+	return heap == other.heap && index == other.index;
       }
 
       bool operator!=(const Iterator& other) const {
@@ -114,11 +114,11 @@ namespace crimson {
       }
 
       T& operator*() {
-	return *heap.data[index];
+	return *heap->data[index];
       }
 
       T* operator->() {
-	return &(*heap.data[index]);
+	return &(*heap->data[index]);
       }
 
 #if 0
@@ -133,10 +133,10 @@ namespace crimson {
     class ConstIterator {
       friend IndIntruHeap<I, T, heap_info, C, K>;
 
-      const IndIntruHeap<I, T, heap_info, C, K>& heap;
+      const IndIntruHeap<I, T, heap_info, C, K>* heap;
       HeapIndex                                  index;
 
-      ConstIterator(const IndIntruHeap<I, T, heap_info, C, K>& _heap,
+      ConstIterator(const IndIntruHeap<I, T, heap_info, C, K>* _heap,
 		    HeapIndex _index) :
 	heap(_heap),
 	index(_index)
@@ -172,14 +172,14 @@ namespace crimson {
       }
 
       ConstIterator& operator++() {
-	if (index <= heap.count) {
+	if (index <= heap->count) {
 	  ++index;
 	}
 	return *this;
       }
 
       bool operator==(const ConstIterator& other) const {
-	return &heap == &other.heap && index == other.index;
+	return heap == other.heap && index == other.index;
       }
 
       bool operator!=(const ConstIterator& other) const {
@@ -187,11 +187,11 @@ namespace crimson {
       }
 
       const T& operator*() {
-	return *heap.data[index];
+	return *heap->data[index];
       }
 
       const T* operator->() {
-	return &(*heap.data[index]);
+	return &(*heap->data[index]);
       }
     }; // class ConstIterator
 
@@ -254,7 +254,7 @@ namespace crimson {
     Iterator find(const I& ind_item) {
       for (HeapIndex i = 0; i < count; ++i) {
 	if (data[i] == ind_item) {
-	  return Iterator(*this, i);
+	  return Iterator(this, i);
 	}
       }
       return end();
@@ -264,7 +264,7 @@ namespace crimson {
     Iterator find(const T& item) {
       for (HeapIndex i = 0; i < count; ++i) {
 	if (*data[i] == item) {
-	  return Iterator(*this, i);
+	  return Iterator(this, i);
 	}
       }
       return end();
@@ -276,7 +276,7 @@ namespace crimson {
       // we'll keep it one more than actual index
       for (HeapIndex i = count; i > 0; --i) {
 	if (data[i-1] == ind_item) {
-	  return Iterator(*this, i-1);
+	  return Iterator(this, i-1);
 	}
       }
       return end();
@@ -288,7 +288,7 @@ namespace crimson {
       // we'll keep it one more than actual index
       for (HeapIndex i = count; i > 0; --i) {
 	if (*data[i-1] == item) {
-	  return Iterator(*this, i-1);
+	  return Iterator(this, i-1);
 	}
       }
       return end();
@@ -297,7 +297,7 @@ namespace crimson {
     ConstIterator find(const I& ind_item) const {
       for (HeapIndex i = 0; i < count; ++i) {
 	if (data[i] == ind_item) {
-	  return ConstIterator(*this, i);
+	  return ConstIterator(this, i);
 	}
       }
       return cend();
@@ -307,7 +307,7 @@ namespace crimson {
     ConstIterator find(const T& item) const {
       for (HeapIndex i = 0; i < count; ++i) {
 	if (*data[i] == item) {
-	  return ConstIterator(*this, i);
+	  return ConstIterator(this, i);
 	}
       }
       return cend();
@@ -319,7 +319,7 @@ namespace crimson {
       // we'll keep it one more than actual index
       for (HeapIndex i = count; i > 0; --i) {
 	if (data[i-1] == ind_item) {
-	  return ConstIterator(*this, i-1);
+	  return ConstIterator(this, i-1);
 	}
       }
       return cend();
@@ -331,7 +331,7 @@ namespace crimson {
       // we'll keep it one more than actual index
       for (HeapIndex i = count; i > 0; --i) {
 	if (*data[i-1] == item) {
-	  return ConstIterator(*this, i-1);
+	  return ConstIterator(this, i-1);
 	}
       }
       return cend();
@@ -344,7 +344,7 @@ namespace crimson {
           std::to_string(ind) + " >= " + std::to_string(count));
       }
       assert(data[ind] == ind_item);
-      return Iterator(*this, ind);
+      return Iterator(this, ind);
     }
 
     void promote(T& item) {
@@ -360,19 +360,19 @@ namespace crimson {
     }
 
     Iterator begin() {
-      return Iterator(*this, 0);
+      return Iterator(this, 0);
     }
 
     Iterator end() {
-      return Iterator(*this, count);
+      return Iterator(this, count);
     }
 
     ConstIterator cbegin() const {
-      return ConstIterator(*this, 0);
+      return ConstIterator(this, 0);
     }
 
     ConstIterator cend() const {
-      return ConstIterator(*this, count);
+      return ConstIterator(this, count);
     }
 
     friend std::ostream& operator<<(std::ostream& out, const IndIntruHeap& h) {
