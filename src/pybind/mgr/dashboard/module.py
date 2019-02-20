@@ -90,27 +90,62 @@ def prepare_url_prefix(url_prefix):
     url_prefix = urlparse.urljoin('/', url_prefix)
     return url_prefix.rstrip('/')
 
+
+def parse_ipaddr(addr):
+    """
+    parse IPv4/IPv6 address string from a sockaddr string
+
+    e.g.,
+    '10.120.155.40:6800'
+    '[fe80::a00:27ff:fe8c:7dbb]:6800'
+
+    :param addr: sockaddr string dumped by ostream& operator<<(ostream& out, const sockaddr *sa)
+    :return: IPv4/IPv6 address string
+    """
+
+    def _split(delims, string, maxsplit=0):
+        import re
+        pattern = '|'.join(map(re.escape, delims))
+        return re.split(pattern, string, maxsplit)
+
+    v = []
+    if '[' in addr:  # IPv6 sockaddr string
+        v = _split(('[', ']'), addr)
+    else:
+        v = _split(':', addr)
+        v.insert(0, '')
+    return v[1]
+
+
 class StandbyModule(MgrStandbyModule):
     def __init__(self, *args, **kwargs):
         super(StandbyModule, self).__init__(*args, **kwargs)
         self.shutdown_event = threading.Event()
 
     def serve(self):
-        server_addr = self.get_localized_config('server_addr', '::')
+        server_addr = self.get_localized_config('server_addr', '')
         server_port = self.get_localized_config('server_port', '7000')
         url_prefix = prepare_url_prefix(self.get_config('url_prefix', default=''))
 
         if server_addr is None:
             raise RuntimeError('no server_addr configured; try "ceph config-key set mgr/dashboard/server_addr <ip>"')
-        log.info("server_addr: %s server_port: %s" % (server_addr, server_port))
-        cherrypy.config.update({
-            'server.socket_host': server_addr,
-            'server.socket_port': int(server_port),
-            'engine.autoreload.on': False,
-            'log.screen': False,
-            'tools.response_headers.on': True,
-            'tools.response_headers.headers': [("Server", "ce")]
-        })
+
+        if server_addr != '':
+            # bind explicitly
+            log.info("server_addr: %s server_port: %s" % (server_addr, server_port))
+            cherrypy.config.update({
+                'server.socket_host': server_addr,
+                'server.socket_port': int(server_port),
+                'engine.autoreload.on': False,
+                'log.screen': False,
+                'tools.response_headers.on': True,
+                'tools.response_headers.headers': [("Server", "ce")]
+            })
+        else:
+            # disable default cherrypy server
+            cherrypy.server.unsubscribe()
+
+            log.info("dashboard disabled in standby module")
 
         current_dir = os.path.dirname(os.path.abspath(__file__))
         jinja_loader = jinja2.FileSystemLoader(current_dir)
@@ -983,19 +1018,59 @@ class Module(MgrModule):
         url_prefix = prepare_url_prefix(self.get_config('url_prefix', default=''))
         self.url_prefix = url_prefix
 
-        server_addr = self.get_localized_config('server_addr', '::')
+        server_addr = self.get_localized_config('server_addr', '')
         server_port = self.get_localized_config('server_port', '7000')
         if server_addr is None:
             raise RuntimeError('no server_addr configured; try "ceph config-key set mgr/dashboard/server_addr <ip>"')
-        log.info("server_addr: %s server_port: %s" % (server_addr, server_port))
-        cherrypy.config.update({
-            'server.socket_host': server_addr,
-            'server.socket_port': int(server_port),
-            'engine.autoreload.on': False,
-            'log.screen': False,
-            'tools.response_headers.on': True,
-            'tools.response_headers.headers': [("Server", "ce")]
-        })
+
+        if server_addr != '':
+            # bind explicitly
+            log.info("server_addr: %s server_port: %s" % (server_addr, server_port))
+            cherrypy.config.update({
+                'server.socket_host': server_addr,
+                'server.socket_port': int(server_port),
+                'engine.autoreload.on': False,
+                'log.screen': False,
+                'tools.response_headers.on': True,
+                'tools.response_headers.headers': [("Server", "ce")]
+            })
+        else:
+            # disable default cherrypy server
+            cherrypy.server.unsubscribe()
+
+            # try to get daemon server addr as server_addr
+            server_addrs = []
+            try:
+                # python array, e.g., ['10.120.155.40:6800'] or ['[fe80::a00:27ff:fe8c:7dbb]:6800']
+                myaddr = self.get_myaddr()
+
+                for i in myaddr:
+                    server_addrs.append(parse_ipaddr(i))
+            except Exception as e:
+                log.error("failed to get mgr daemon server addr: {0}".format(e))
+            except:
+                log.error("failed to get mgr daemon server addr")
+
+            if len(server_addrs) == 0:
+                # fallback if failed
+                server_addrs.append('::')
+
+            # remove duplicates
+            server_addrs = set(server_addrs)
+
+            for idx, server_addr in enumerate(server_addrs):
+                log.info("server_addr: %s server_port: %s" % (server_addr, server_port))
+                cherrypy.config.update({
+                    'server.s{0}.socket_host'.format(idx): server_addr,
+                    'server.s{0}.socket_port'.format(idx): int(server_port),
+                    'engine.autoreload.on': False,
+                    'log.screen': False,
+                    'tools.response_headers.on': True,
+                    'tools.response_headers.headers': [("Server", "ce")]
+                })
+
+            # todo
+            server_addr = list(server_addrs)[-1]
 
         osdmap = self.get_osdmap()
         log.info("latest osdmap is %d" % osdmap.get_epoch())
