@@ -29,6 +29,7 @@
 #include "PyModuleRegistry.h"
 
 #include "ActivePyModules.h"
+#include "DaemonServer.h"
 
 #define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_mgr
@@ -39,10 +40,10 @@
 ActivePyModules::ActivePyModules(PyModuleConfig const &config_,
           DaemonStateIndex &ds, ClusterState &cs,
 	  MonClient &mc, LogChannelRef clog_, Objecter &objecter_,
-          Client &client_, Finisher &f)
+          Client &client_, Finisher &f, DaemonServer &server)
   : config_cache(config_), daemon_state(ds), cluster_state(cs),
     monc(mc), clog(clog_), objecter(objecter_), client(client_), finisher(f),
-    lock("ActivePyModules")
+    server(server), lock("ActivePyModules")
 {}
 
 ActivePyModules::~ActivePyModules() = default;

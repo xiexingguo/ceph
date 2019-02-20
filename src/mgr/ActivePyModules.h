@@ -28,6 +28,7 @@
 #include "ClusterState.h"
 
 class health_check_map_t;
+class DaemonServer;
 
 typedef std::map<std::string, std::string> PyModuleConfig;
 
@@ -43,6 +44,7 @@ class ActivePyModules
   Objecter &objecter;
   Client   &client;
   Finisher &finisher;
+  DaemonServer &server;
 
 
   mutable Mutex lock{"ActivePyModules::lock"};
@@ -51,7 +53,7 @@ public:
   ActivePyModules(PyModuleConfig const &config_,
             DaemonStateIndex &ds, ClusterState &cs, MonClient &mc,
             LogChannelRef clog_, Objecter &objecter_, Client &client_,
-            Finisher &f);
+            Finisher &f, DaemonServer &server);
 
   ~ActivePyModules();
 

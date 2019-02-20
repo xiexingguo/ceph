@@ -110,7 +110,7 @@ public:
                 PyModuleConfig &config_,
                 DaemonStateIndex &ds, ClusterState &cs, MonClient &mc,
                 LogChannelRef clog_, Objecter &objecter_, Client &client_,
-                Finisher &f);
+                Finisher &f, DaemonServer &server);
   void standby_start(
       MonClient *monc);
 

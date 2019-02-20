@@ -342,7 +342,7 @@ void PyModuleRegistry::active_start(
             PyModuleConfig &config_,
             DaemonStateIndex &ds, ClusterState &cs, MonClient &mc,
             LogChannelRef clog_, Objecter &objecter_, Client &client_,
-            Finisher &f)
+            Finisher &f, DaemonServer &server)
 {
   Mutex::Locker locker(lock);
 
@@ -357,7 +357,7 @@ void PyModuleRegistry::active_start(
   }
 
   active_modules.reset(new ActivePyModules(
-              config_, ds, cs, mc, clog_, objecter_, client_, f));
+              config_, ds, cs, mc, clog_, objecter_, client_, f, server));
 
   for (const auto &i : modules) {
     dout(4) << "Starting " << i.first << dendl;
