@@ -639,3 +639,11 @@ class MgrModule(ceph_module.BaseMgrModule):
         """
 
         return self._ceph_have_mon_connection()
+
+    def get_myaddr(self):
+        """
+        Retrieve the mgr daemon server bind address.
+
+        :return: list
+        """
+        return self._ceph_get_myaddr()

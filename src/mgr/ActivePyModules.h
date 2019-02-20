@@ -92,6 +92,8 @@ public:
 
   void set_uri(const std::string& module_name, const std::string &uri);
 
+  PyObject *get_myaddr_python() const;
+
   // Python command definitions, including callback
   std::vector<ModuleCommand> get_py_commands() const;
 

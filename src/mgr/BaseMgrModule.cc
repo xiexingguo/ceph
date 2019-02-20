@@ -527,6 +527,12 @@ ceph_have_mon_connection(BaseMgrModule *self, PyObject *args)
   }
 }
 
+static PyObject*
+ceph_get_myaddr(BaseMgrModule *self, PyObject *args)
+{
+  return self->py_modules->get_myaddr_python();
+}
+
 
 PyMethodDef BaseMgrModule_methods[] = {
   {"_ceph_get", (PyCFunction)ceph_state_get, METH_VARARGS,
@@ -583,6 +589,9 @@ PyMethodDef BaseMgrModule_methods[] = {
   {"_ceph_have_mon_connection", (PyCFunction)ceph_have_mon_connection,
     METH_NOARGS, "Find out whether this mgr daemon currently has "
                  "a connection to a monitor"},
+
+  {"_ceph_get_myaddr", (PyCFunction)ceph_get_myaddr, METH_NOARGS,
+    "Get the listen address of the Mgr daemon where we are running"},
 
   {NULL, NULL, 0, NULL}
 };

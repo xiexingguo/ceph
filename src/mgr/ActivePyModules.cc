@@ -759,3 +759,12 @@ void ActivePyModules::set_uri(const std::string& module_name,
   modules[module_name]->set_uri(uri);
 }
 
+PyObject *ActivePyModules::get_myaddr_python() const
+{
+  auto entity_addr = server.get_myaddr();
+
+  PyFormatter f(false, true);
+  f.dump_stream("myaddr") << entity_addr.get_sockaddr();
+  return f.get();
+}
+
