@@ -72,7 +72,7 @@ namespace crimson {
     constexpr auto standard_erase_age = std::chrono::seconds(600);
     constexpr auto standard_check_time = std::chrono::seconds(60);
     constexpr auto aggressive_check_time = std::chrono::seconds(5);
-    constexpr uint standard_erase_max = 100;
+    constexpr uint standard_erase_max = 1000;
 
     struct ClientInfo {
       double reservation;  // minimum
