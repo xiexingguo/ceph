@@ -421,6 +421,7 @@ OPTION(objecter_completion_locks_per_session, OPT_U64) // num of completion lock
 OPTION(objecter_inject_no_watch_ping, OPT_BOOL)   // suppress watch pings
 OPTION(objecter_retry_writes_after_first_reply, OPT_BOOL)   // ignore the first reply for each write, and resend the osd op instead
 OPTION(objecter_debug_inject_relock_delay, OPT_BOOL)
+OPTION(objecter_pause_op_on_mon_lost, OPT_BOOL)
 OPTION(objecter_requests_tracker_history_size, OPT_U32)   // max size of histroy to track requests done rate
 OPTION(objecter_dmc_op_cost_from_rados, OPT_BOOL)
 
