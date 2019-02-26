@@ -1747,6 +1747,10 @@ private:
     string spec_default;
     string spec_high;
     string spec_unlimited; // be careful!
+    // add baseline for 3 mode
+    string spec_base_default;
+    string spec_base_client;
+    string spec_base_recovery;
 
     LoadBalancer(OSD *o) : osd(o),
                            cis(o->OSD_TICK_INTERVAL),
@@ -1758,12 +1762,23 @@ private:
       std::unique_lock<std::mutex> l(lock);
       auto conf = osd->cct->_conf;
       enabled = conf->get_val<bool>("osd_load_balancer_enabled");
-      mode = conf->get_val<string>("osd_load_balancer_op_priority_mode");
       spec_low = conf->get_val<string>("osd_load_balancer_spec_low");
       spec_default = conf->get_val<string>("osd_load_balancer_spec_default");
       spec_high = conf->get_val<string>("osd_load_balancer_spec_high");
-      spec_unlimited = conf->get_val<string>(
-        "osd_load_balancer_spec_unlimited");
+      spec_unlimited = conf->get_val<string>("osd_load_balancer_spec_unlimited");
+      spec_base_client = conf->get_val<string>(
+        "osd_load_balancer_spec_base_client");
+      spec_base_default = conf->get_val<string>(
+        "osd_load_balancer_spec_base_default");
+      spec_base_recovery = conf->get_val<string>(
+        "osd_load_balancer_spec_base_recovery");
+
+      auto mode_new = conf->get_val<string>("osd_load_balancer_op_priority_mode");
+      if (mode_new != mode) {
+        mode = mode_new;
+        spec_default = get_spec_base();
+      }
+
       cis.maybe_update_config(conf);
       ris.maybe_update_config(conf);
       cis.set_white_noise_filter(conf->get_val<int64_t>(
@@ -1773,20 +1788,13 @@ private:
     }
 
     void maybe_update_spec() {
-      if (mode == "default") {
-        // basic-floor
-        spec_toapply = spec_default;
-        // need further adjustment?
-        if (cis.is_idle() && !ris.is_idle()) {
-          // no client ops and recovery is in-progress,
-          // promote to high spec (so we can recover at high speed)
-          spec_toapply = spec_high;
-        }
-      } else if (mode == "recovery_op_prioritized") {
-        spec_toapply = spec_unlimited;
-      } else {
-        assert(mode == "client_op_prioritized");
-        spec_toapply = spec_low;
+      // basic-floor
+      spec_toapply = spec_default;
+      // need further adjustment?
+      if (cis.is_idle() && !ris.is_idle()) {
+        // no client ops and recovery is in-progress,
+        // promote to high spec (so we can recover at high speed)
+        spec_toapply = spec_high;
       }
 
       // try apply new spec
@@ -1827,6 +1835,19 @@ private:
             (mode == "default" && cis.is_idle());
     }
 
+    string get_spec_base() {
+      string base;
+      if (mode == "default") {
+        base = spec_base_default;
+      } else if (mode == "recovery_op_prioritized") {
+        base = spec_base_recovery;
+      } else {
+        assert(mode == "client_op_prioritized");
+        base = spec_base_client;
+      }
+      return base;
+    }
+
     void dump(Formatter *f) {
       std::unique_lock<std::mutex> l(lock);
       f->dump_bool("enabled", enabled);
@@ -1842,6 +1863,10 @@ private:
       f->dump_string("spec_default", spec_default);
       f->dump_string("spec_high", spec_high);
       f->dump_string("spec_unlimited", spec_unlimited);
+      f->dump_string("spec_base_client", spec_base_client);
+      f->dump_string("spec_base_default", spec_base_default);
+      f->dump_string("spec_base_recovery", spec_base_recovery);
+      f->dump_string("current base", get_spec_base());
     }
   } load_balancer;
 

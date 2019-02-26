@@ -9817,11 +9817,11 @@ void OSD::handle_reset_recovery_limits(Message *m)
   string args;
   auto conf = cct->_conf;
   if (msg->options & OSD_RESET_RECOVERY_BANDWIDTH) {
-    auto spec = conf->get_val<string>("osd_dmc_queue_spec_pullpush");
-    auto found = spec.find_last_of(',');
+    auto spec_base = load_balancer.get_spec_base();
+    auto found = spec_base.find_last_of(',');
     assert(found != std::string::npos);
-    auto bandwidth = spec.substr(found + 1);
-    auto others = spec.substr(0, found);
+    auto bandwidth = spec_base.substr(found + 1);
+    auto others = spec_base.substr(0, found);
     double default_value;
     char unit = 0;
     r = sscanf(bandwidth.c_str(), "%lf%c", &default_value, &unit);
@@ -10571,6 +10571,9 @@ const char** OSD::get_tracked_conf_keys() const
     "osd_load_balancer_spec_default",
     "osd_load_balancer_spec_high",
     "osd_load_balancer_spec_unlimited",
+    "osd_load_balancer_spec_base_client",
+    "osd_load_balancer_spec_base_default",
+    "osd_load_balancer_spec_base_recovery",
     NULL
   };
   return KEYS;
@@ -10670,7 +10673,10 @@ void OSD::handle_conf_change(const struct md_config_t *conf,
       changed.count("osd_load_balancer_spec_low") ||
       changed.count("osd_load_balancer_spec_default") ||
       changed.count("osd_load_balancer_spec_high") ||
-      changed.count("osd_load_balancer_spec_unlimited")) {
+      changed.count("osd_load_balancer_spec_unlimited") ||
+      changed.count("osd_load_balancer_spec_base_client") ||
+      changed.count("osd_load_balancer_spec_base_default") ||
+      changed.count("osd_load_balancer_spec_base_recovery")) {
     load_balancer.maybe_update_config();
   }
 

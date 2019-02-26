@@ -2657,6 +2657,18 @@ std::vector<Option> get_global_options() {
     .set_default("0,100,0,0")
     .set_description(""),
 
+    Option("osd_load_balancer_spec_base_client", Option::TYPE_STR, Option::LEVEL_ADVANCED)
+    .set_default("0,100,0,15M")
+    .set_description(""),
+
+    Option("osd_load_balancer_spec_base_default", Option::TYPE_STR, Option::LEVEL_ADVANCED)
+    .set_default("0,100,0,25M")
+    .set_description(""),
+
+    Option("osd_load_balancer_spec_base_recovery", Option::TYPE_STR, Option::LEVEL_ADVANCED)
+    .set_default("0,100,0,35M")
+    .set_description(""),
+
     Option("osd_max_push_objects", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(10)
     .set_description(""),
