@@ -106,7 +106,8 @@ class StandbyModule(MgrStandbyModule):
         cherrypy.config.update({
             'server.socket_host': server_addr,
             'server.socket_port': int(server_port),
-            'engine.autoreload.on': False
+            'engine.autoreload.on': False,
+            'log.screen': False
         })
 
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -988,7 +989,8 @@ class Module(MgrModule):
         cherrypy.config.update({
             'server.socket_host': server_addr,
             'server.socket_port': int(server_port),
-            'engine.autoreload.on': False
+            'engine.autoreload.on': False,
+            'log.screen': False
         })
 
         osdmap = self.get_osdmap()
