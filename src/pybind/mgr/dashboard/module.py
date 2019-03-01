@@ -91,6 +91,10 @@ def prepare_url_prefix(url_prefix):
     return url_prefix.rstrip('/')
 
 class StandbyModule(MgrStandbyModule):
+    def __init__(self, *args, **kwargs):
+        super(StandbyModule, self).__init__(*args, **kwargs)
+        self.shutdown_event = threading.Event()
+
     def serve(self):
         server_addr = self.get_localized_config('server_addr', '::')
         server_port = self.get_localized_config('server_port', '7000')
@@ -134,15 +138,16 @@ class StandbyModule(MgrStandbyModule):
         cherrypy.tree.mount(Root(), url_prefix, {})
         log.info("Starting engine...")
         cherrypy.engine.start()
-        log.info("Waiting for engine...")
-        cherrypy.engine.wait(state=cherrypy.engine.states.STOPPED)
-        log.info("Engine done.")
+        log.info("Engine started...")
+        # Wait for shutdown event
+        self.shutdown_event.wait()
+        self.shutdown_event.clear()
+        cherrypy.engine.stop()
+        log.info("Engine stopped.")
 
     def shutdown(self):
-        log.info("Stopping server...")
-        cherrypy.engine.wait(state=cherrypy.engine.states.STARTED)
-        cherrypy.engine.stop()
-        log.info("Stopped server")
+        log.info("Stopping engine...")
+        self.shutdown_event.set()
 
 
 class Module(MgrModule):
@@ -183,6 +188,8 @@ class Module(MgrModule):
 
         # A prefix for all URLs to use the dashboard with a reverse http proxy
         self.url_prefix = ''
+
+        self.shutdown_event = threading.Event()
 
     @property
     def rados(self):
@@ -269,9 +276,8 @@ class Module(MgrModule):
         return obj
 
     def shutdown(self):
-        log.info("Stopping server...")
-        cherrypy.engine.exit()
-        log.info("Stopped server")
+        log.info('Stopping engine...')
+        self.shutdown_event.set()
 
         log.info("Stopping librados...")
         if self._rados:
@@ -1153,6 +1159,9 @@ class Module(MgrModule):
         log.info("Starting engine on {0}:{1}...".format(
             server_addr, server_port))
         cherrypy.engine.start()
-        log.info("Waiting for engine...")
-        cherrypy.engine.block()
-        log.info("Engine done.")
+        log.info('Engine started.')
+        # wait for the shutdown event
+        self.shutdown_event.wait()
+        self.shutdown_event.clear()
+        cherrypy.engine.stop()
+        log.info('Engine stopped')
