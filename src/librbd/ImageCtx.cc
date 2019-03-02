@@ -1338,25 +1338,30 @@ struct C_InvalidateCache : public Context {
            lmt != nullptr && bdw != nullptr);
 
     *wgt = cct->_conf->rbd_client_qos_weight; // always use origin weight
-    // -1 means need not to update, otherwise go to update
+    // OUT -1 means need not to update, otherwise go to update
     if (*rsv == -1) {
       *rsv = 0;
       *wgt |= QOS_FLAG_RSV;
-    } else {
-      *rsv = (client_qos_reservation != *rsv) ? *rsv : -1;
+    } else if (*rsv == 0) {
+      *wgt &= ~QOS_FLAG_RSV;
     }
-    if (*lmt == -1 || *lmt == 0) {
-      *lmt += 1;
+    *rsv = (client_qos_reservation != *rsv) ? *rsv : -1;
+
+    if (*lmt == -1) {
+      *lmt = 0;
       *wgt |= QOS_FLAG_LMT;
-    } else {
-      *lmt = (client_qos_limit != *lmt) ? *lmt : -1;
+    } else if (*lmt == 0) {
+      *wgt &= ~QOS_FLAG_LMT;
     }
-    if (*bdw == -1 || *bdw == 0) {
-      *bdw = (*bdw == -1 ? 0 : 2048);
+    *lmt = (client_qos_limit != *lmt) ? *lmt : -1;
+
+    if (*bdw == -1) {
+      *bdw = 0;
       *wgt |= QOS_FLAG_BDW;
-    } else {
-      *bdw = (client_qos_bandwidth != *bdw) ? *bdw : -1;
+    } else if (*bdw == 0) {
+      *wgt &= ~QOS_FLAG_BDW;
     }
+    *bdw = (client_qos_bandwidth != *bdw) ? *bdw : -1;
 
     *wgt = (client_qos_weight != *wgt) ? *wgt : -1;
   }

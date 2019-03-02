@@ -6339,8 +6339,8 @@ static std::vector<Option> get_rbd_options() {
     .set_description(""),
   
     Option("rbd_client_qos_weight", Option::TYPE_INT, Option::LEVEL_ADVANCED)
-    .set_default(128)
-    .set_description(""),
+    .set_default(139)
+    .set_description("base weight 128 & QOS_FLAG_RSV & QOS_FLAG_LMT & QOS_FLAG_BDW"),
   
     Option("rbd_client_qos_limit", Option::TYPE_INT, Option::LEVEL_ADVANCED)
     .set_default(0)
