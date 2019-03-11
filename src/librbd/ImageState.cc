@@ -303,6 +303,7 @@ void ImageState<I>::handle_update_notification() {
   ldout(cct, 20) << __func__ << ": refresh_seq = " << m_refresh_seq << ", "
 		 << "last_refresh = " << m_last_refresh << dendl;
 
+  m_image_ctx->qos_set_default();
   if (m_state == STATE_OPEN) {
     m_update_watchers->notify();
   }

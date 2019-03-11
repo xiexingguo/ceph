@@ -1306,64 +1306,77 @@ struct C_InvalidateCache : public Context {
     return 0;
   }
 
-  void ImageCtx::set_qos_enabled(bool enabled) {
+  void ImageCtx::qos_set_enabled(bool enabled) {
     qos_enabled = enabled;
   }
 
-  int ImageCtx::set_qos_quota(int res, int wgt, int lim, int bdw) {
-    if (res < 0 || wgt < 0 || lim < 0 || bdw < 0) {
+  int ImageCtx::qos_set_quota(int res, int wgt, int lim, int bdw) {
+    assert(!(res == 0 && wgt == 0));
+
+    if (res < -1 || wgt < -1 || lim < -1 || bdw < -1) {
       ldout(cct, 0) << __func__ << " invalid qos spec [ "
                     << res << ", " << wgt << ", " << lim << " ]" << dendl;
       return -1;
-    } else if (res || wgt || lim || bdw) {
-      data_ctx.set_qos_quota(res, wgt, lim, bdw);
-    } else {
-      ldout(cct, 5) << __func__ << " setting " << this << " qos spec to [ "
-                    << client_qos_reservation << ", "
-                    << client_qos_weight << ", "
-                    << client_qos_limit << ", "
-                    << client_qos_bandwidth << " ]" << dendl;
-
-      data_ctx.set_qos_quota(client_qos_reservation,
-                             client_qos_weight,
-                             client_qos_limit,
-                             client_qos_bandwidth);
     }
+
+    auto reservation = (res != -1) ? res : client_qos_reservation;
+    auto weight      = (wgt != -1) ? wgt : client_qos_weight;
+    auto limit       = (lim != -1) ? lim : client_qos_limit;
+    auto bandwidth   = (bdw != -1) ? bdw : client_qos_bandwidth;
+
+    ldout(cct, 5) << __func__ << " setting " << this << " qos spec to [ "
+                  << reservation << "(" << res << "), "
+                  << weight << "(" << wgt << "), "
+                  << limit << "(" << lim << "), "
+                  << bandwidth << "(" << bdw << ") ]" << dendl;
+
+    data_ctx.set_qos_quota(reservation, weight, limit, bandwidth);
+
     return 0;
   }
 
-  void ImageCtx::prepare_to_update(int *rsv,
-                                   int *wgt, int *lmt, int *bdw) {
+  int ImageCtx::qos_set_default() {
+    return qos_set_quota(0, 139, 0, 0);
+  }
+
+  bool ImageCtx::need_to_update(int *rsv, int *wgt, int *lmt, int *bdw) {
     assert(rsv != nullptr && wgt != nullptr &&
            lmt != nullptr && bdw != nullptr);
 
-    *wgt = cct->_conf->rbd_client_qos_weight; // always use origin weight
+    *wgt = client_qos_weight; // always use origin weight
     // OUT -1 means need not to update, otherwise go to update
     if (*rsv == -1) {
-      *rsv = 0;
       *wgt |= QOS_FLAG_RSV;
-    } else if (*rsv == 0) {
+      *rsv = 0;
+    } else {
       *wgt &= ~QOS_FLAG_RSV;
     }
     *rsv = (client_qos_reservation != *rsv) ? *rsv : -1;
 
     if (*lmt == -1) {
-      *lmt = 0;
       *wgt |= QOS_FLAG_LMT;
-    } else if (*lmt == 0) {
+      *lmt = 0;
+    } else {
       *wgt &= ~QOS_FLAG_LMT;
     }
     *lmt = (client_qos_limit != *lmt) ? *lmt : -1;
 
     if (*bdw == -1) {
-      *bdw = 0;
       *wgt |= QOS_FLAG_BDW;
-    } else if (*bdw == 0) {
+      *bdw = 0;
+    } else {
       *wgt &= ~QOS_FLAG_BDW;
     }
     *bdw = (client_qos_bandwidth != *bdw) ? *bdw : -1;
 
     *wgt = (client_qos_weight != *wgt) ? *wgt : -1;
+
+    return (*rsv != -1) || (*wgt != -1) ||
+           (*lmt != -1) || (*bdw != -1);
+  }
+
+  bool ImageCtx::is_paused_by_qos() {
+    return data_ctx.is_paused_by_qos();
   }
 
 }

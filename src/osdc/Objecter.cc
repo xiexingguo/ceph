@@ -279,6 +279,31 @@ uint32_t Objecter::get_cur_bytesrate() {
   return reqs_stats.rate_bytes_done;
 }
 
+bool Objecter::is_paused_by_qos() {
+  return (!qos.limit && !(qos.weight & 0x02)) ||
+    (!qos.bandwidth && !(qos.weight & 0x01));
+}
+
+bool Objecter::maybe_update_qos(Op *op) {
+  bool to_update = false;
+  for (auto it = op->ops.begin(); it != op->ops.end(); it++) {
+    if ((it->op.op & CEPH_OSD_OP_TYPE) == CEPH_OSD_OP_TYPE_EXEC &&
+        it->op.cls.class_len && it->indata.length()) {
+      std::stringstream out;
+      it->indata.write(it->op.cls.class_len, it->op.cls.method_len, out);
+      if (!out.str().compare("metadata_set") ||
+          !out.str().compare("metadata_remove")) {
+        ldout(cct, 5) << " maybe_update_qos: " << op->target.base_oid
+             << " '" << op->target.base_oloc << "' '"
+             << op->target.target_oloc << "' " << op->ops << " tid "
+             << op->tid << dendl;
+        to_update = true;
+        break;
+      }
+    }
+  }
+  return to_update;
+}
 
 // messages ------------------------------
 
@@ -2216,8 +2241,8 @@ void Objecter::tick()
     }
   }
 
-  if (cct->_conf->objecter_pause_op_on_mon_lost &&
-      monc->is_connected()) {
+  if ((cct->_conf->objecter_pause_op_on_mon_lost &&
+      monc->is_connected()) || !is_paused_by_qos()) {
     try_resend(sul);
   }
 
@@ -2540,9 +2565,12 @@ void Objecter::_op_submit(Op *op, shunique_lock& sul, ceph_tid_t *ptid)
   }
 
   bool need_send = false;
-
-  if (!monc->is_connected() &&
-      cct->_conf->objecter_pause_op_on_mon_lost) {
+  if (is_paused_by_qos() && !maybe_update_qos(op)) {
+    ldout(cct, 10) << " qos zero, paused " << op << " tid " << op->tid
+		   << dendl;
+    op->target.paused = true;
+  } else if (!monc->is_connected() &&
+             cct->_conf->objecter_pause_op_on_mon_lost) {
     ldout(cct, 10) << " mon lost, paused " << op << " tid " << op->tid
 		   << dendl;
     op->target.paused = true;
@@ -2788,8 +2816,8 @@ bool Objecter::target_should_be_paused(op_target_t *t)
   return (t->flags & CEPH_OSD_FLAG_READ && pauserd) ||
     (t->flags & CEPH_OSD_FLAG_WRITE && pausewr) ||
     (osdmap->get_epoch() < epoch_barrier) ||
-    (cct->_conf->objecter_pause_op_on_mon_lost &&
-    !monc->is_connected());
+    (cct->_conf->objecter_pause_op_on_mon_lost && !monc->is_connected()) ||
+    (is_paused_by_qos());
 }
 
 /**

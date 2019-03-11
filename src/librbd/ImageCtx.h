@@ -247,7 +247,6 @@ namespace librbd {
     void perf_report_stop();
     void send_report();
     void get_report_data(op_stat_t *rpdata);
-    void prepare_to_update(int *rsv, int *wgt, int *lmt, int *bdw);
 
     void set_read_flag(unsigned flag);
     int get_read_flags(librados::snap_t snap_id);
@@ -359,8 +358,11 @@ namespace librbd {
     int get_image_perf(int64_t *pio, int64_t *pio_r = nullptr,
                        int64_t *pio_w = nullptr, int64_t *pbdw = nullptr,
                        int64_t *pbdw_r = nullptr, int64_t *pbdw_w = nullptr);
-    void set_qos_enabled(bool enabled = true);
-    int set_qos_quota(int res = 0, int wgt = 0, int lim = 0, int bdw = 0);
+    void qos_set_enabled(bool enabled = true);
+    int qos_set_quota(int res = -1, int wgt = -1, int lim = -1, int bdw = -1);
+    int qos_set_default();
+    bool need_to_update(int *rsv, int *wgt, int *lmt, int *bdw);
+    bool is_paused_by_qos();
   };
 }
 

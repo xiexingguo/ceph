@@ -289,8 +289,8 @@ namespace librbd {
       return r;
     }
 
-    ictx->set_qos_enabled();
-    ictx->set_qos_quota();
+    ictx->qos_set_enabled();
+    ictx->qos_set_quota();
     image.ctx = (image_ctx_t) ictx;
     tracepoint(librbd, open_image_exit, 0);
     return 0;
@@ -315,8 +315,8 @@ namespace librbd {
       return r;
     }
 
-    ictx->set_qos_enabled();
-    ictx->set_qos_quota();
+    ictx->qos_set_enabled();
+    ictx->qos_set_quota();
     image.ctx = (image_ctx_t) ictx;
     tracepoint(librbd, open_image_by_id_exit, 0);
     return 0;
@@ -1848,17 +1848,22 @@ namespace librbd {
     return r;
   }
 
-  void Image::set_qos_enabled(bool enabled) {
+  void Image::qos_set_enabled(bool enabled) {
     ImageCtx *ictx = (ImageCtx *)ctx;
-    ictx->set_qos_enabled(enabled);
+    ictx->qos_set_enabled(enabled);
   }
 
-  int Image::set_qos_quota(int res, int wgt, int lim, int bdw) {
+  int Image::qos_set_quota(int res, int wgt, int lim, int bdw) {
     ImageCtx *ictx = (ImageCtx *)ctx;
     tracepoint(librbd, set_qos_quota_enter, ictx);
-    int retval = ictx->set_qos_quota(res, wgt, lim, bdw);
+    int retval = ictx->qos_set_quota(res, wgt, lim, bdw);
     tracepoint(librbd, set_qos_quota_exit, retval);
     return retval;
+  }
+
+  int Image::qos_set_default() {
+    ImageCtx *ictx = (ImageCtx *)ctx;
+    return ictx->qos_set_default();
   }
 
   int Image::qos_spec_set(int rsv, int wgt, int lmt, int bdw) {
@@ -2541,8 +2546,8 @@ extern "C" int rbd_open(rados_ioctx_t p, const char *name, rbd_image_t *image,
   int r = ictx->state->open(false);
   if (r >= 0) {
     *image = (rbd_image_t)ictx;
-    ictx->set_qos_enabled();
-    ictx->set_qos_quota();        // use meta config or default configuration from config_opt.h
+    ictx->qos_set_enabled();
+    ictx->qos_set_quota();        // use meta config or default configuration from config_opt.h
   }
   tracepoint(librbd, open_image_exit, r);
   return r;
@@ -2564,8 +2569,8 @@ extern "C" int rbd_open_by_id(rados_ioctx_t p, const char *id,
     delete ictx;
   } else {
     *image = (rbd_image_t)ictx;
-    ictx->set_qos_enabled();
-    ictx->set_qos_quota();        // use meta config or default configuration from config_opt.h
+    ictx->qos_set_enabled();
+    ictx->qos_set_quota();        // use meta config or default configuration from config_opt.h
   }
   tracepoint(librbd, open_image_exit, r);
   return r;

@@ -906,8 +906,8 @@ int open_image(librados::IoCtx &io_ctx, const std::string &image_name,
   }
   if (!bench) {
     // disable qos
-    image->set_qos_enabled(false);
-    image->set_qos_quota(0, 100);
+    image->qos_set_enabled(false);
+    image->qos_set_default();
   }
   return 0;
 }
@@ -929,8 +929,8 @@ int open_image_by_id(librados::IoCtx &io_ctx, const std::string &image_id,
   }
   if (!bench) {
     // disable qos
-    image->set_qos_enabled(false);
-    image->set_qos_quota(0, 100);
+    image->qos_set_enabled(false);
+    image->qos_set_default();
   }
   return 0;
 }

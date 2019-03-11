@@ -2177,6 +2177,10 @@ void librados::IoCtx::set_qos_quota(int res, int wgt, int lim, int bdw)
   io_ctx_impl->objecter->update_qos(res, wgt, lim, bdw);
 }
 
+bool librados::IoCtx::is_paused_by_qos() {
+  return io_ctx_impl->objecter->is_paused_by_qos();
+}
+
 uint32_t librados::IoCtx::get_qos_io_rate()
 {
   return io_ctx_impl->objecter->get_cur_reqsrate();

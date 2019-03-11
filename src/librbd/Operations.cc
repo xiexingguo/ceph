@@ -622,7 +622,7 @@ int Operations<I>::qos_update(int rsv, int wgt, int lmt, int bdw) {
 
 template <typename I>
 void Operations<I>::execute_qos_update(int rsv, int wgt, int lmt, int bdw,
-                                             Context *on_finish) {
+                                       Context *on_finish) {
   assert(m_image_ctx.owner_lock.is_locked());
   assert(m_image_ctx.exclusive_lock == nullptr ||
          m_image_ctx.exclusive_lock->is_lock_owner());
@@ -635,6 +635,7 @@ void Operations<I>::execute_qos_update(int rsv, int wgt, int lmt, int bdw,
                 << ", bandwidth=" << bdw  << ", need_update=" << need_update << dendl;
 
   if (need_update) {
+    m_image_ctx.qos_set_default();
     auto *request = new operation::QosSetRequest<I>(m_image_ctx,
                                       new C_NotifyUpdate<I>(m_image_ctx, on_finish));
     if (rsv >= 0) {
@@ -686,6 +687,7 @@ void Operations<I>::execute_qos_remove(int flag, Context *on_finish) {
   ldout(cct, 5) << this << " " << __func__ << ": flag=" << flag << dendl;
 
   if (flag) {
+    m_image_ctx.qos_set_default();
     auto *request = new operation::QosRemoveRequest<I>(m_image_ctx,
                                       new C_NotifyUpdate<I>(m_image_ctx, on_finish));
     if (flag & QOS_FLAG_RSV) {

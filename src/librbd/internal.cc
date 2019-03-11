@@ -2471,12 +2471,14 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
       return r;
     }
 
-    ictx->prepare_to_update(&rsv, &wgt, &lmt, &bdw);
-    r = ictx->operations->qos_update(rsv, wgt, lmt, bdw);
-    if (r < 0) {
-      return r;
+    ictx->qos_set_enabled(false);
+    if (ictx->need_to_update(&rsv, &wgt, &lmt, &bdw)) {
+      ictx->qos_set_default();
+      r = ictx->operations->qos_update(rsv, wgt, lmt, bdw);
+      if (r < 0) {
+        return r;
+      }
     }
-
     return 0;
   }
 
@@ -2559,10 +2561,8 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
 
   int qos_spec_del(ImageCtx *ictx, int flag)
   {
-    int r = ictx->operations->qos_remove(flag);
-    if (r < 0) {
-      return r;
-    }
-    return 0;
+    ictx->qos_set_enabled(false);
+    ictx->qos_set_default();
+    return ictx->operations->qos_remove(flag);
   }
 }

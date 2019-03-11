@@ -349,7 +349,7 @@ Context *RefreshRequest<I>::handle_v2_get_metadata(int *result) {
 
   m_image_ctx.apply_metadata(m_metadata, false);
   if (m_image_ctx.qos_enabled) {
-    m_image_ctx.set_qos_quota();
+    m_image_ctx.qos_set_quota();
   }
 
   send_v2_get_flags();
