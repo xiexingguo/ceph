@@ -1854,6 +1854,22 @@ struct object_stat_sum_t {
       num_keys_recovered < 0;
   }
 
+  bool maybe_high_burrs(int64_t max_bytes,
+                        int64_t max_ops) const {
+
+    if (max_bytes > 0 && (num_rd_kb * 1024 > max_bytes ||
+                          num_wr_kb * 1024 > max_bytes ||
+                          num_bytes_recovered > max_bytes))
+      return true;
+
+    if (max_ops > 0 && (num_rd > max_ops ||
+                        num_wr > max_ops ||
+                        num_objects_recovered > max_ops))
+      return true;
+
+    return false;
+  }
+
   void dump(Formatter *f) const;
   void padding_check() {
     static_assert(

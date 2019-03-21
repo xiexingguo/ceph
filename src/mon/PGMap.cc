@@ -1272,8 +1272,14 @@ void PGMap::apply_incremental(CephContext *cct, const Incremental& inc)
     // calculate a delta, and average over the last 2 deltas.
     pool_stat_t d = pg_sum;
     d.stats.sub(pg_sum_old.stats);
-    auto period = cct ? cct->_conf->get_val<int64_t>("mgr_tick_period") : 2;
-    if (!d.stats.sum.is_negative() && (double)delta_t >= period) {
+    auto osd_max_bdw = cct ? cct->_conf->get_val<int64_t>(
+      "mgr_stat_osd_max_bandwidth") : (200 << 20);
+    auto osd_max_ops = cct ? cct->_conf->get_val<int64_t>(
+      "mgr_stat_osd_max_iops") : 1000;
+    auto max_bytes = osd_max_bdw * num_osd * (double)delta_t;
+    auto max_ops = osd_max_ops * num_osd * (double)delta_t;
+    if (!d.stats.sum.is_negative() &&
+        !d.stats.sum.maybe_high_burrs(max_bytes, max_ops)) {
       pg_sum_deltas.push_back(make_pair(d, delta_t));
       stamp_delta += delta_t;
       pg_sum_delta.stats.add(d.stats);
@@ -1284,6 +1290,16 @@ void PGMap::apply_incremental(CephContext *cct, const Incremental& inc)
         stamp_delta -= pg_sum_deltas.front().second;
         pg_sum_deltas.pop_front();
       }
+    } else {
+      dout(10) << " filter out, delta_t: " << (double)delta_t
+               << ", num_rd: " << d.stats.sum.num_rd
+               << ", num_rd_kb: " << d.stats.sum.num_rd_kb
+               << ", num_wr: " << d.stats.sum.num_wr
+               << ", num_wr_kb: " << d.stats.sum.num_wr_kb
+               << ", num_objects_recovered: " << d.stats.sum.num_objects_recovered
+               << ", num_bytes_recovered: " << d.stats.sum.num_bytes_recovered
+               << ", num_keys_recovered: " << d.stats.sum.num_keys_recovered
+               << dendl;
     }
   }
   stamp = inc.stamp;
@@ -2380,8 +2396,13 @@ void PGMap::update_delta(
   pool_stat_t d = current_pool_sum;
   d.stats.sub(old_pool_sum.stats);
   // filter non-negative delta value that updated by mgr tick
-  auto period = cct ? cct->_conf->get_val<int64_t>("mgr_tick_period") : 2;
-  if (d.stats.sum.is_negative() || (double)delta_t < period)
+  auto osd_max_bdw = cct ? cct->_conf->get_val<int64_t>(
+    "mgr_stat_osd_max_bandwidth") : (200 << 20);
+  auto osd_max_ops = cct ? cct->_conf->get_val<int64_t>(
+    "mgr_stat_osd_max_iops") : 1000;
+  auto max_bytes = osd_max_bdw * num_osd * (double)delta_t;
+  auto max_ops = osd_max_ops * num_osd * (double)delta_t;
+  if (d.stats.sum.is_negative() || d.stats.sum.maybe_high_burrs(max_bytes, max_ops))
     return;
 
   /* Aggregate current delta, and take out the last seen delta (if any) to

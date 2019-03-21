@@ -4572,6 +4572,16 @@ std::vector<Option> get_global_options() {
     .set_description("Period in seconds from last beacon to manager dropping "
                      "state about a monitored service (RGW, rbd-mirror etc)"),
 
+    Option("mgr_stat_osd_max_bandwidth", Option::TYPE_INT, Option::LEVEL_DEV)
+    .set_default(200_M)
+    .add_service("mgr")
+    .set_description("max client or recovery bandwidth for an OSD"),
+
+    Option("mgr_stat_osd_max_iops", Option::TYPE_INT, Option::LEVEL_DEV)
+    .set_default(1000)
+    .add_service("mgr")
+    .set_description("max client or recovery iops for an OSD"),
+
     Option("mon_mgr_digest_period", Option::TYPE_INT, Option::LEVEL_DEV)
     .set_default(5)
     .add_service("mon")
