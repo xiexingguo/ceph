@@ -1176,7 +1176,8 @@ void PGMap::apply_incremental(CephContext *cct, const Incremental& inc)
   version++;
 
   pool_stat_t pg_sum_old = pg_sum;
-  mempool::pgmap::unordered_map<uint64_t, pool_stat_t> pg_pool_sum_old;
+  mempool::pgmap::unordered_map<int32_t, pool_stat_t> pg_pool_sum_old;
+  pg_pool_sum_old = pg_pool_sum;
 
   bool ratios_changed = false;
   if (inc.full_ratio != full_ratio && inc.full_ratio != -1) {
@@ -1195,9 +1196,6 @@ void PGMap::apply_incremental(CephContext *cct, const Incremental& inc)
        ++p) {
     const pg_t &update_pg(p->first);
     const pg_stat_t &update_stat(p->second);
-
-    if (pg_pool_sum_old.count(update_pg.pool()) == 0)
-      pg_pool_sum_old[update_pg.pool()] = pg_pool_sum[update_pg.pool()];
 
     auto t = pg_stat.find(update_pg);
     if (t == pg_stat.end()) {
@@ -2471,7 +2469,7 @@ void PGMap::update_one_pool_delta(
  */
 void PGMap::update_pool_deltas(
   CephContext *cct, const utime_t ts,
-  const mempool::pgmap::unordered_map<uint64_t,pool_stat_t>& pg_pool_sum_old)
+  const mempool::pgmap::unordered_map<int32_t,pool_stat_t>& pg_pool_sum_old)
 {
   for (auto it = pg_pool_sum_old.begin();
        it != pg_pool_sum_old.end(); ++it) {

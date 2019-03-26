@@ -377,7 +377,8 @@ void PGMonitor::apply_pgmap_delta(bufferlist& bl)
   }
 
   pool_stat_t pg_sum_old = pg_map.pg_sum;
-  mempool::pgmap::unordered_map<uint64_t, pool_stat_t> pg_pool_sum_old;
+  mempool::pgmap::unordered_map<int32_t, pool_stat_t> pg_pool_sum_old;
+  pg_pool_sum_old = pg_map.pg_pool_sum;
 
   // pgs
   set<int64_t> deleted_pools;
@@ -392,8 +393,6 @@ void PGMonitor::apply_pgmap_delta(bufferlist& bl)
       r = -ENOENT;
     } else {
       r = mon->store->get(pgmap_pg_prefix, stringify(pgid), pgbl);
-      if (pg_pool_sum_old.count(pgid.pool()) == 0)
-	pg_pool_sum_old[pgid.pool()] = pg_map.pg_pool_sum[pgid.pool()];
     }
 
     if (r >= 0) {

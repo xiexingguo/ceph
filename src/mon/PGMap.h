@@ -328,7 +328,7 @@ public:
   void update_pool_deltas(
     CephContext *cct,
     const utime_t ts,
-    const mempool::pgmap::unordered_map<uint64_t, pool_stat_t>& pg_pool_sum_old);
+    const mempool::pgmap::unordered_map<int32_t, pool_stat_t>& pg_pool_sum_old);
   void clear_delta();
 
   void deleted_pool(int64_t pool) {
