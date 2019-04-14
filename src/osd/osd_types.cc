@@ -4315,7 +4315,7 @@ void pg_log_entry_t::decode_with_checksum(bufferlist::iterator& p)
 
 void pg_log_entry_t::encode(bufferlist &bl) const
 {
-  ENCODE_START(12, 4, bl);
+  ENCODE_START(13, 4, bl);
   ::encode(op, bl);
   ::encode(soid, bl);
   ::encode(version, bl);
@@ -4344,6 +4344,7 @@ void pg_log_entry_t::encode(bufferlist &bl) const
     ::encode(return_code, bl);
   if (!extra_reqids.empty())
     ::encode(extra_reqid_return_codes, bl);
+  ::encode(clean_regions, bl);
   ENCODE_FINISH(bl);
 }
 
@@ -4405,6 +4406,10 @@ void pg_log_entry_t::decode(bufferlist::iterator &bl)
     ::decode(return_code, bl);
   if (struct_v >= 12 && !extra_reqids.empty())
     ::decode(extra_reqid_return_codes, bl);
+  if (struct_v >= 13)
+    ::decode(clean_regions, bl);
+  else
+    clean_regions.mark_fully_dirty();
   DECODE_FINISH(bl);
 }
 
@@ -4451,6 +4456,11 @@ void pg_log_entry_t::dump(Formatter *f) const
     mod_desc.dump(f);
     f->close_section();
   }
+  {
+    f->open_object_section("clean_regions");
+    clean_regions.dump(f);
+    f->close_section();
+  }
 }
 
 void pg_log_entry_t::generate_test_instances(list<pg_log_entry_t*>& o)
@@ -4482,6 +4492,7 @@ ostream& operator<<(ostream& out, const pg_log_entry_t& e)
     }
     out << " snaps " << snaps;
   }
+  out << " ObjectCleanRegions " << e.clean_regions;
   return out;
 }
 
@@ -4750,7 +4761,8 @@ ostream& operator<<(ostream& out, const pg_missing_item& i)
   out << i.need;
   if (i.have != eversion_t())
     out << "(" << i.have << ")";
-  out << " flags = " << i.flag_str();
+  out << " flags = " << i.flag_str()
+      << " " << i.clean_regions;
   return out;
 }
 
