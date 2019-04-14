@@ -2560,6 +2560,10 @@ std::vector<Option> get_global_options() {
     .set_default(8096)
     .set_description(""),
 
+    Option("osd_inc_recovery", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
+    .set_default(true)
+    .set_description(""),
+
     Option("osd_copyfrom_max_chunk", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(8<<20)
     .set_description(""),

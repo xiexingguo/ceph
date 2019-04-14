@@ -764,6 +764,7 @@ OPTION(osd_recovery_max_active, OPT_U64)
 OPTION(osd_recovery_max_single_start, OPT_U64)
 OPTION(osd_recovery_max_chunk, OPT_U64)  // max size of push chunk
 OPTION(osd_recovery_max_omap_entries_per_chunk, OPT_U64) // max number of omap entries per chunk; 0 to disable limit
+OPTION(osd_inc_recovery, OPT_BOOL)
 OPTION(osd_copyfrom_max_chunk, OPT_U64)   // max size of a COPYFROM chunk
 OPTION(osd_push_per_object_cost, OPT_U64)  // push cost per object
 OPTION(osd_max_push_cost, OPT_U64)  // max size of push message

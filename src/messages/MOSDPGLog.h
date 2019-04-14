@@ -79,7 +79,7 @@ public:
     ::encode(epoch, payload);
     ::encode(info, payload);
     ::encode(log, payload);
-    ::encode(missing, payload);
+    ::encode(missing, payload, features);
     ::encode(query_epoch, payload);
     if (HAVE_FEATURE(features, SERVER_LUMINOUS)) {
       header.version = HEAD_VERSION;
