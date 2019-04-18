@@ -1079,7 +1079,7 @@ bool DaemonServer::handle_command(MCommand *m)
 	      if (num_active_clean < pg_map.num_pg) {
 		// all pgs aren't active+clean; we need to be careful.
 		auto p = pg_map.osd_stat.find(osd);
-		if (p == pg_map.osd_stat.end()) {
+		if (p == pg_map.osd_stat.end() || !osdmap.is_up(osd)) {
 		  missing_stats.insert(osd);
                   continue;
 		} else if (p->second.num_pgs > 0) {
