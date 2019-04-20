@@ -571,7 +571,7 @@ int Mirror<I>::mode_set(librados::IoCtx& io_ctx,
 
   if (next_mirror_mode == cls::rbd::MIRROR_MODE_POOL) {
     map<string, string> images;
-    r = Image<I>::list_images(io_ctx, &images);
+    r = Image<I>::list_images_v2(io_ctx, &images);
     if (r < 0) {
       lderr(cct) << "failed listing images: " << cpp_strerror(r) << dendl;
       return r;
@@ -784,7 +784,7 @@ int Mirror<I>::image_status_list(librados::IoCtx& io_ctx,
   map<string, string> id_to_name;
   {
     map<string, string> name_to_id;
-    r = Image<I>::list_images(io_ctx, &name_to_id);
+    r = Image<I>::list_images_v2(io_ctx, &name_to_id);
     if (r < 0) {
       return r;
     }

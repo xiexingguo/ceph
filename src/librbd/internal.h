@@ -62,7 +62,6 @@ namespace librbd {
   int snap_set(ImageCtx *ictx, const cls::rbd::SnapshotNamespace &snap_namespace,
 	       const char *snap_name);
 
-  int list(librados::IoCtx& io_ctx, std::vector<std::string>& names);
   int list_children(ImageCtx *ictx,
                     std::vector<child_info_t> *names);
   int create(librados::IoCtx& io_ctx, const char *imgname, uint64_t size,

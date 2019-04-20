@@ -69,6 +69,11 @@ typedef int (*librbd_progress_fn_t)(uint64_t offset, uint64_t total, void *ptr);
 typedef void (*rbd_update_callback_t)(void *arg);
 
 typedef struct {
+  char *id;
+  char *name;
+} rbd_image_spec_t;
+
+typedef struct {
   uint64_t id;
   uint64_t size;
   const char *name;
@@ -202,8 +207,15 @@ CEPH_RBD_API int rbd_image_options_unset(rbd_image_options_t opts, int optname);
 CEPH_RBD_API void rbd_image_options_clear(rbd_image_options_t opts);
 CEPH_RBD_API int rbd_image_options_is_empty(rbd_image_options_t opts);
 
+/* helpers */
+CEPH_RBD_API void rbd_image_spec_cleanup(rbd_image_spec_t *image);
+CEPH_RBD_API void rbd_image_spec_list_cleanup(rbd_image_spec_t *images,
+                                              size_t num_images);
+
 /* images */
 CEPH_RBD_API int rbd_list(rados_ioctx_t io, char *names, size_t *size);
+CEPH_RBD_API int rbd_list2(rados_ioctx_t io, rbd_image_spec_t* images,
+                           size_t *max_images);
 CEPH_RBD_API int rbd_create(rados_ioctx_t io, const char *name, uint64_t size,
                             int *order);
 CEPH_RBD_API int rbd_create2(rados_ioctx_t io, const char *name, uint64_t size,

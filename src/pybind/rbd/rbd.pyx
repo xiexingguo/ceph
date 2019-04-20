@@ -102,6 +102,10 @@ cdef extern from "rbd/librbd.h" nogil:
         char *image_id
         bint trash
 
+    ctypedef struct rbd_image_spec_t:
+        char *id
+        char *name
+
     ctypedef enum rbd_mirror_mode_t:
         _RBD_MIRROR_MODE_DISABLED "RBD_MIRROR_MODE_DISABLED"
         _RBD_MIRROR_MODE_IMAGE "RBD_MIRROR_MODE_IMAGE"
@@ -158,7 +162,7 @@ cdef extern from "rbd/librbd.h" nogil:
     ctypedef int (*librbd_progress_fn_t)(uint64_t offset, uint64_t total, void* ptr)
 
     void rbd_version(int *major, int *minor, int *extra)
-
+    void rbd_image_spec_list_cleanup(rbd_image_spec_t *image, size_t num_images)
     void rbd_image_options_create(rbd_image_options_t* opts)
     void rbd_image_options_destroy(rbd_image_options_t opts)
     int rbd_image_options_set_string(rbd_image_options_t opts, int optname,
@@ -174,6 +178,8 @@ cdef extern from "rbd/librbd.h" nogil:
     int rbd_image_options_is_empty(rbd_image_options_t opts)
 
     int rbd_list(rados_ioctx_t io, char *names, size_t *size)
+    int rbd_list2(rados_ioctx_t io, rbd_image_spec_t *images,
+                  size_t *num_images)
     int rbd_create(rados_ioctx_t io, const char *name, uint64_t size,
                    int *order)
     int rbd_create4(rados_ioctx_t io, const char *name, uint64_t size,
@@ -876,6 +882,15 @@ class RBD(object):
                     if name]
         finally:
             free(c_names)
+
+    def list2(self, ioctx):
+        """
+        Iterate over the images in the pool.
+        :param ioctx: determines which RADOS pool the image is in
+        :type ioctx: :class:`rados.Ioctx`
+        :returns: :class:`ImageIterator`
+        """
+        return ImageIterator(ioctx)
 
     def remove(self, ioctx, name):
         """
@@ -3027,6 +3042,46 @@ cdef class LockOwnerIterator(object):
         if self.lock_owners:
             rbd_lock_get_owners_cleanup(self.lock_owners, self.num_lock_owners)
             free(self.lock_owners)
+
+cdef class ImageIterator(object):
+    """
+    Iterator over RBD images in a pool
+    Yields a dictionary containing information about the images
+    Keys are:
+    * ``id`` (str) - image id
+    * ``name`` (str) - image name
+    """
+    cdef rados_ioctx_t ioctx
+    cdef rbd_image_spec_t *images
+    cdef size_t num_images
+
+    def __init__(self, ioctx):
+        self.ioctx = convert_ioctx(ioctx)
+        self.images = NULL
+        self.num_images = 1024
+        while True:
+            self.images = <rbd_image_spec_t*>realloc_chk(
+                self.images, self.num_images * sizeof(rbd_image_spec_t))
+            with nogil:
+                ret = rbd_list2(self.ioctx, self.images, &self.num_images)
+            if ret >= 0:
+                break
+            elif ret == -errno.ERANGE:
+                self.num_images *= 2
+            else:
+                raise make_ex(ret, 'error listing images.')
+
+    def __iter__(self):
+        for i in range(self.num_images):
+            yield {
+                'id'   : decode_cstr(self.images[i].id),
+                'name' : decode_cstr(self.images[i].name)
+                }
+
+    def __dealloc__(self):
+        if self.images:
+            rbd_image_spec_list_cleanup(self.images, self.num_images)
+            free(self.images)
 
 cdef class MetadataIterator(object):
     """

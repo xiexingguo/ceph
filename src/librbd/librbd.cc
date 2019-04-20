@@ -28,6 +28,7 @@
 #include "librbd/internal.h"
 #include "librbd/Operations.h"
 #include "librbd/api/DiffIterate.h"
+#include "librbd/api/Image.h"
 #include "librbd/api/Mirror.h"
 #include "librbd/io/AioCompletion.h"
 #include "librbd/io/ImageRequestWQ.h"
@@ -600,14 +601,33 @@ namespace librbd {
 
   int RBD::list(IoCtx& io_ctx, vector<string>& names)
   {
+    std::vector<image_spec_t> image_specs;
+    int r = list2(io_ctx, &image_specs);
+    if (r < 0) {
+      return r;
+    }
+
+    names.clear();
+    for (auto& it : image_specs) {
+      names.push_back(it.name);
+    }
+    return 0;
+  }
+
+  int RBD::list2(IoCtx& io_ctx, std::vector<image_spec_t> *images)
+  {
     TracepointProvider::initialize<tracepoint_traits>(get_cct(io_ctx));
-    tracepoint(librbd, list_enter, io_ctx.get_pool_name().c_str(), io_ctx.get_id());
-    int r = librbd::list(io_ctx, names);
+    tracepoint(librbd, list_enter, io_ctx.get_pool_name().c_str(),
+               io_ctx.get_id());
+
+    int r = librbd::api::Image<>::list_images(io_ctx, images);
+#ifdef WITH_LTTNG
     if (r >= 0) {
-      for (vector<string>::iterator itr = names.begin(), end = names.end(); itr != end; ++itr) {
-	tracepoint(librbd, list_entry, itr->c_str());
+      for (auto& it : *images) {
+        tracepoint(librbd, list_entry, it.name.c_str());
       }
     }
+#endif
     tracepoint(librbd, list_exit, r, r);
     return r;
   }
@@ -2142,15 +2162,32 @@ extern "C" int rbd_mirror_image_status_summary(rados_ioctx_t p,
   return 0;
 }
 
+/* helpers */
+extern "C" void rbd_image_spec_cleanup(rbd_image_spec_t *image)
+{
+  free(image->id);
+  free(image->name);
+}
+
+extern "C" void rbd_image_spec_list_cleanup(rbd_image_spec_t *images,
+                                            size_t num_images)
+{
+  for (size_t idx = 0; idx < num_images; ++idx) {
+    rbd_image_spec_cleanup(&images[idx]);
+  }
+}
+
 /* images */
 extern "C" int rbd_list(rados_ioctx_t p, char *names, size_t *size)
 {
   librados::IoCtx io_ctx;
   librados::IoCtx::from_rados_ioctx_t(p, io_ctx);
+
   TracepointProvider::initialize<tracepoint_traits>(get_cct(io_ctx));
-  tracepoint(librbd, list_enter, io_ctx.get_pool_name().c_str(), io_ctx.get_id());
-  vector<string> cpp_names;
-  int r = librbd::list(io_ctx, cpp_names);
+  tracepoint(librbd, list_enter, io_ctx.get_pool_name().c_str(),
+             io_ctx.get_id());
+  std::vector<librbd::image_spec_t> cpp_image_specs;
+  int r = librbd::api::Image<>::list_images(io_ctx, &cpp_image_specs);
   if (r < 0) {
     tracepoint(librbd, list_exit, r, *size);
     return r;
@@ -2158,8 +2195,8 @@ extern "C" int rbd_list(rados_ioctx_t p, char *names, size_t *size)
 
   size_t expected_size = 0;
 
-  for (size_t i = 0; i < cpp_names.size(); i++) {
-    expected_size += cpp_names[i].size() + 1;
+  for (auto& it : cpp_image_specs) {
+    expected_size += it.name.size() + 1;
   }
   if (*size < expected_size) {
     *size = expected_size;
@@ -2167,17 +2204,52 @@ extern "C" int rbd_list(rados_ioctx_t p, char *names, size_t *size)
     return -ERANGE;
   }
 
-  if (!names) 
+  if (names == NULL) {
+    tracepoint(librbd, list_exit, -EINVAL, *size);
     return -EINVAL;
+  }
 
-  for (int i = 0; i < (int)cpp_names.size(); i++) {
-    const char* name = cpp_names[i].c_str();
+  for (auto& it : cpp_image_specs) {
+    const char* name = it.name.c_str();
     tracepoint(librbd, list_entry, name);
     strcpy(names, name);
     names += strlen(names) + 1;
   }
   tracepoint(librbd, list_exit, (int)expected_size, *size);
   return (int)expected_size;
+}
+
+extern "C" int rbd_list2(rados_ioctx_t p, rbd_image_spec_t *images,
+                         size_t *size)
+{
+  librados::IoCtx io_ctx;
+  librados::IoCtx::from_rados_ioctx_t(p, io_ctx);
+
+  TracepointProvider::initialize<tracepoint_traits>(get_cct(io_ctx));
+  tracepoint(librbd, list_enter, io_ctx.get_pool_name().c_str(),
+             io_ctx.get_id());
+  memset(images, 0, sizeof(*images) * *size);
+  std::vector<librbd::image_spec_t> cpp_image_specs;
+  int r = librbd::api::Image<>::list_images(io_ctx, &cpp_image_specs);
+  if (r < 0) {
+    tracepoint(librbd, list_exit, r, *size);
+    return r;
+  }
+
+  size_t expected_size = cpp_image_specs.size();
+  if (*size < expected_size) {
+    *size = expected_size;
+    tracepoint(librbd, list_exit, -ERANGE, *size);
+    return -ERANGE;
+  }
+
+  *size = expected_size;
+  for (size_t idx = 0; idx < expected_size; ++idx) {
+    images[idx].id = strdup(cpp_image_specs[idx].id.c_str());
+    images[idx].name = strdup(cpp_image_specs[idx].name.c_str());
+  }
+  tracepoint(librbd, list_exit, 0, *size);
+  return 0;
 }
 
 extern "C" int rbd_create(rados_ioctx_t p, const char *name, uint64_t size, int *order)

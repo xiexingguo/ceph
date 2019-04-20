@@ -287,6 +287,10 @@ def test_list_empty():
 def test_list():
     eq([image_name], RBD().list(ioctx))
 
+    with Image(ioctx, image_name) as image:
+        image_id = image.id()
+    eq([{'id': image_id, 'name': image_name}], list(RBD().list2(ioctx)))
+
 @with_setup(create_image, remove_image)
 def test_rename():
     rbd = RBD()

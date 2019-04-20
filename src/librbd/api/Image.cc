@@ -17,7 +17,53 @@ namespace librbd {
 namespace api {
 
 template <typename I>
-int Image<I>::list_images(librados::IoCtx& io_ctx, ImageNameToIds *images) {
+int Image<I>::list_images(librados::IoCtx& io_ctx,
+                          std::vector<image_spec_t> *images) {
+  CephContext *cct = (CephContext *)io_ctx.cct();
+  ldout(cct, 20) << "list " << &io_ctx << dendl;
+
+  int r;
+  images->clear();
+
+  bufferlist bl;
+  r = io_ctx.read(RBD_DIRECTORY, bl, 0, 0);
+  if (r == -ENOENT) {
+    return 0;
+  } else if (r < 0) {
+    lderr(cct) << "error listing v1 images: " << cpp_strerror(r) << dendl;
+    return r;
+  }
+
+  // V1 format images are in a tmap
+  if (bl.length()) {
+    auto p = bl.begin();
+    bufferlist header;
+    std::map<std::string, bufferlist> m;
+    ::decode(header, p);
+    ::decode(m, p);
+    for (auto& it : m) {
+      images->push_back({.id ="", .name = it.first});
+    }
+  }
+
+  // V2 format images
+  std::map<std::string, std::string> image_names_to_ids;
+  r = list_images_v2(io_ctx, &image_names_to_ids);
+  if (r < 0) {
+    lderr(cct) << "error listing v2 images: " << cpp_strerror(r) << dendl;
+    return r;
+  }
+
+  for (const auto& img_pair : image_names_to_ids) {
+    images->push_back({.id = img_pair.second,
+                       .name = img_pair.first});
+  }
+
+  return 0;
+}
+
+template <typename I>
+int Image<I>::list_images_v2(librados::IoCtx& io_ctx, ImageNameToIds *images) {
   CephContext *cct = (CephContext *)io_ctx.cct();
   ldout(cct, 20) << "io_ctx=" << &io_ctx << dendl;
 
@@ -27,8 +73,8 @@ int Image<I>::list_images(librados::IoCtx& io_ctx, ImageNameToIds *images) {
   string last_read = "";
   do {
     map<string, string> images_page;
-    r = cls_client::dir_list(&io_ctx, RBD_DIRECTORY,
-      		   last_read, max_read, &images_page);
+    r = cls_client::dir_list(&io_ctx, RBD_DIRECTORY, last_read, max_read,
+                             &images_page);
     if (r < 0 && r != -ENOENT) {
       lderr(cct) << "error listing image in directory: "
                  << cpp_strerror(r) << dendl;

@@ -4,6 +4,7 @@
 #ifndef LIBRBD_API_IMAGE_H
 #define LIBRBD_API_IMAGE_H
 
+#include "include/rbd/librbd.hpp"
 #include "librbd/Types.h"
 #include <map>
 #include <set>
@@ -25,7 +26,9 @@ struct Image {
   typedef std::map<std::string, std::string> ImageNameToIds;
 
   static int list_images(librados::IoCtx& io_ctx,
-                         ImageNameToIds *images);
+                         std::vector<image_spec_t> *images);
+  static int list_images_v2(librados::IoCtx& io_ctx,
+                            ImageNameToIds *images);
 
   static int list_children(ImageCtxT *ictx, const ParentSpec &parent_spec,
                            PoolImageIds *pool_image_ids);

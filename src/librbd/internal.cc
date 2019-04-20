@@ -613,45 +613,6 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
     return (*opts_)->empty();
   }
 
-  int list(IoCtx& io_ctx, vector<string>& names)
-  {
-    CephContext *cct = (CephContext *)io_ctx.cct();
-    ldout(cct, 20) << "list " << &io_ctx << dendl;
-
-    bufferlist bl;
-    int r = io_ctx.read(RBD_DIRECTORY, bl, 0, 0);
-    if (r < 0) {
-      if (r == -ENOENT) {
-        r = 0;
-      }
-      return r;
-    }
-
-    // old format images are in a tmap
-    if (bl.length()) {
-      bufferlist::iterator p = bl.begin();
-      bufferlist header;
-      map<string,bufferlist> m;
-      ::decode(header, p);
-      ::decode(m, p);
-      for (map<string,bufferlist>::iterator q = m.begin(); q != m.end(); ++q) {
-	names.push_back(q->first);
-      }
-    }
-
-    map<string, string> images;
-    r = api::Image<>::list_images(io_ctx, &images);
-    if (r < 0) {
-      lderr(cct) << "error listing v2 images: " << cpp_strerror(r) << dendl;
-      return r;
-    }
-    for (const auto& img_pair : images) {
-      names.push_back(img_pair.first);
-    }
-
-    return 0;
-  }
-
   int flatten_children(ImageCtx *ictx, const char* snap_name,
                        ProgressContext& pctx)
   {

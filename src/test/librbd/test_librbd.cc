@@ -5967,6 +5967,10 @@ TEST_F(TestLibRBD, ImagePollIO)
 
 namespace librbd {
 
+static bool operator==(const image_spec_t &lhs, const image_spec_t &rhs) {
+  return (lhs.id == rhs.id && lhs.name == rhs.name);
+}
+
 static bool operator==(const mirror_peer_t &lhs, const mirror_peer_t &rhs) {
   return (lhs.uuid == rhs.uuid &&
           lhs.cluster_name == rhs.cluster_name &&
@@ -6547,6 +6551,55 @@ TEST_F(TestLibRBD, ZeroOverlapFlatten) {
   ASSERT_EQ(0, rbd.open(ioctx, clone_image, clone_name.c_str(), NULL));
   ASSERT_EQ(0, clone_image.resize(0));
   ASSERT_EQ(0, clone_image.flatten());
+}
+
+TEST_F(TestLibRBD, ImageSpec) {
+  REQUIRE_FEATURE(RBD_FEATURE_LAYERING);
+
+  librados::IoCtx ioctx;
+  ASSERT_EQ(0, _rados.ioctx_create(create_pool(true).c_str(), ioctx));
+
+  librbd::RBD rbd;
+  librbd::Image parent_image;
+  std::string name = get_temp_image_name();
+
+  uint64_t size = 1;
+  int order = 0;
+
+  ASSERT_EQ(0, create_image_pp(rbd, ioctx, name.c_str(), size, &order));
+  ASSERT_EQ(0, rbd.open(ioctx, parent_image, name.c_str(), NULL));
+
+  std::string parent_id;
+  ASSERT_EQ(0, parent_image.get_id(&parent_id));
+
+  uint64_t features;
+  ASSERT_EQ(0, parent_image.features(&features));
+
+  ASSERT_EQ(0, parent_image.snap_create("snap"));
+  ASSERT_EQ(0, parent_image.snap_protect("snap"));
+
+  std::string clone_name = this->get_temp_image_name();
+  ASSERT_EQ(0, rbd.clone(ioctx, name.c_str(), "snap", ioctx, clone_name.c_str(),
+                         features, &order));
+
+  librbd::Image clone_image;
+  ASSERT_EQ(0, rbd.open(ioctx, clone_image, clone_name.c_str(), NULL));
+
+  std::string clone_id;
+  ASSERT_EQ(0, clone_image.get_id(&clone_id));
+
+  std::vector<librbd::image_spec_t> images;
+  ASSERT_EQ(0, rbd.list2(ioctx, &images));
+
+  std::vector<librbd::image_spec_t> expected_images{
+    {.id = parent_id, .name = name},
+    {.id = clone_id, .name = clone_name}
+  };
+  std::sort(expected_images.begin(), expected_images.end(),
+            [](const librbd::image_spec_t& lhs, const librbd::image_spec_t &rhs) {
+              return lhs.name < rhs.name;
+            });
+  ASSERT_EQ(expected_images, images);
 }
 
 // poorman's assert()
