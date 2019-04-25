@@ -5851,6 +5851,8 @@ void ObjectRecoveryInfo::decode(bufferlist::iterator &bl,
   ::decode(clone_subset, bl);
   if (struct_v > 2)
     ::decode(object_exist, bl);
+  else
+    object_exist = false;
   DECODE_FINISH(bl);
   if (struct_v < 2) {
     if (!soid.is_max() && soid.pool == -1)
