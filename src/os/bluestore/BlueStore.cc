@@ -9355,10 +9355,27 @@ void BlueStore::_kv_sync_thread()
 	if (!bluefs_gift_extents.empty()) {
 	  _commit_bluefs_freespace(bluefs_gift_extents);
 	}
-	dout(20) << __func__ << " releasing old bluefs 0x" << std::hex
-		 << bluefs_extents_reclaiming << std::dec << dendl;
-	alloc->release(bluefs_extents_reclaiming);
-	bluefs_extents_reclaiming.clear();
+
+	if (!bluefs_extents_reclaiming.empty()) {
+	  dout(20) << __func__ << " releasing old bluefs 0x" << std::hex
+		   << bluefs_extents_reclaiming << std::dec << dendl;
+	  int r = 0;
+	  if (cct->_conf->bdev_enable_discard && cct->_conf->bdev_async_discard) {
+	    r = bdev->queue_discard(bluefs_extents_reclaiming);
+	    if (r == 0) {
+	      goto clear;
+	    }
+	  } else if (cct->_conf->bdev_enable_discard) {
+	    for (auto p = bluefs_extents_reclaiming.begin(); p != bluefs_extents_reclaiming.end(); ++p) {
+	      bdev->discard(p.get_start(), p.get_len());
+	    }
+	  }
+
+	  alloc->release(bluefs_extents_reclaiming);
+
+	  clear:
+	    bluefs_extents_reclaiming.clear();
+	}
       }
 
       {
