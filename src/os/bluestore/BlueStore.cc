@@ -3716,7 +3716,7 @@ bool BlueStore::OmapIteratorImpl::valid()
 {
   RWLock::RLocker l(c->lock);
   bool r = o->onode.has_omap() && it && it->valid() &&
-    it->raw_key().second <= tail;
+    it->raw_key().second < tail;
   if (it && it->valid()) {
     ldout(c->store->cct,20) << __func__ << " is at "
 			    << pretty_binary_string(it->raw_key().second)
@@ -11549,6 +11549,7 @@ void BlueStore::_do_omap_clear(TransContext *txc, uint64_t id)
     dout(30) << __func__ << "  rm " << pretty_binary_string(it->key()) << dendl;
     it->next();
   }
+  txc->t->rmkey(PREFIX_OMAP, tail);
 }
 
 int BlueStore::_omap_clear(TransContext *txc,
@@ -11579,6 +11580,11 @@ int BlueStore::_omap_setkeys(TransContext *txc,
   if (!o->onode.has_omap()) {
     o->onode.set_omap_flag();
     txc->write_onode(o);
+
+    string key_tail;
+    bufferlist tail;
+    get_omap_tail(o->onode.nid, &key_tail);
+    txc->t->set(PREFIX_OMAP, key_tail, tail);
   } else {
     txc->note_modified_object(o);
   }
@@ -11613,6 +11619,11 @@ int BlueStore::_omap_setheader(TransContext *txc,
   if (!o->onode.has_omap()) {
     o->onode.set_omap_flag();
     txc->write_onode(o);
+
+    string key_tail;
+    bufferlist tail;
+    get_omap_tail(o->onode.nid, &key_tail);
+    txc->t->set(PREFIX_OMAP, key_tail, tail);
   } else {
     txc->note_modified_object(o);
   }
@@ -11755,6 +11766,7 @@ int BlueStore::_clone(TransContext *txc,
     dout(20) << __func__ << " clearing old omap data" << dendl;
     newo->flush();
     _do_omap_clear(txc, newo->onode.nid);
+    newo->onode.clear_omap_flag();
   }
   if (oldo->onode.has_omap()) {
     dout(20) << __func__ << " copying omap data" << dendl;
@@ -11779,8 +11791,10 @@ int BlueStore::_clone(TransContext *txc,
       }
       it->next();
     }
-  } else {
-    newo->onode.clear_omap_flag();
+    string new_tail;
+    bufferlist new_tail_value;
+    get_omap_tail(newo->onode.nid, &new_tail);
+    txc->t->set(PREFIX_OMAP, new_tail, new_tail_value);
   }
 
   txc->write_onode(newo);
