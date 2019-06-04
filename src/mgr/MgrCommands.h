@@ -149,3 +149,12 @@ COMMAND("mgr dump imgs_perf "				\
 	"dump image perf statistics",     		\
 	"mgr", "r", "cli,rest")
 
+COMMAND("mgr report cache-stat "                        \
+        "name=data_buff,type=CephString",               \
+        "report interesting cache info to mgr",         \
+        "mgr", "r", "cli,rest")
+
+COMMAND("mgr dump cache-stat "                          \
+        "name=pool_name,type=CephString,n=N,req=false", \
+        "dump cache info",                              \
+        "mgr", "r", "cli,rest")

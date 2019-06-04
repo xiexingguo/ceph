@@ -89,6 +89,8 @@ protected:
   set<int> last_adjusted_osds;
   utime_t last_adjust;
 
+  std::map<int, cache_stat_t> cache_stat; // record cache info by osd-id
+
   static void _generate_command_map(map<string,cmd_vartype>& cmdmap,
                                     map<string,string> &param_str_map);
   static const MonCommand *_get_mgrcommand(const string &cmd_prefix,

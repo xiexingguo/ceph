@@ -21,6 +21,7 @@
 #include <boost/circular_buffer.hpp>
 
 #include "common/RWLock.h"
+#include "include/stringify.h"
 
 #include "msg/msg_types.h"
 #include "osd/osd_types.h"
@@ -242,5 +243,37 @@ struct imageperf_t {
   }
 };
 
+struct cache_stat_t {
+  uint64_t capacity = 0;     // bytes
+  uint64_t usage = 0;
+  uint64_t read_hits = 0;
+  uint64_t read_ops = 0;
+
+  cache_stat_t() {};
+  cache_stat_t(uint64_t capacity, uint64_t usage, uint64_t read_hits, uint64_t read_ops)
+    : capacity(capacity), usage(usage), read_hits(read_hits), read_ops(read_ops) {};
+
+  float calculate_hit_rate() {
+    float hit_rate= 0;
+    if (read_ops > 0) {
+      hit_rate = read_hits * 1.0 / read_ops;
+    }
+    return hit_rate;
+  }
+
+  void dump(Formatter *f, int64_t pool_id) {
+    if (f) {
+      std::string pool = stringify(pool_id);
+      f->open_object_section(pool.c_str());
+      f->dump_int("pool_id", pool_id);
+      f->dump_unsigned("capacity", capacity);
+      f->dump_unsigned("usage", usage);
+      f->dump_unsigned("read_hits", read_hits);
+      f->dump_unsigned("read_ops", read_ops);
+      f->dump_float("hit_rate", calculate_hit_rate());
+      f->close_section();
+    }
+  }
+};
 #endif
 
