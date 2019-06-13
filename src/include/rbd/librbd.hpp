@@ -458,6 +458,8 @@ public:
   int qos_spec_get(int64_t *rsv, int64_t *wgt, int64_t *lmt, int64_t *bdw, int *fmeta_rwl);
   int qos_spec_del();
 
+  void notify_update();
+
 private:
   friend class RBD;
 

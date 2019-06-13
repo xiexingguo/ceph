@@ -1946,6 +1946,12 @@ namespace librbd {
     return librbd::qos_spec_del(ictx);
   }
 
+  void Image::notify_update()
+  {
+    ImageCtx *ictx = (ImageCtx *)ctx;
+    ictx->notify_update();
+  }
+
 } // namespace librbd
 
 extern "C" void rbd_version(int *major, int *minor, int *extra)
@@ -4316,3 +4322,9 @@ extern "C" int rbd_qos_del(rbd_image_t image, int flag)
   return librbd::qos_spec_del(ictx, flag);
 }
 
+extern "C" void rbd_notify_update(rbd_image_t image)
+{
+  librbd::ImageCtx *ictx = (librbd::ImageCtx *)image;
+
+  ictx->notify_update();
+}

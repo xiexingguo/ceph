@@ -371,6 +371,8 @@ cdef extern from "rbd/librbd.h" nogil:
                     int *metaflag)
     int rbd_qos_del(rbd_image_t image, int flag)
 
+    void rbd_notify_update(rbd_image_t image)
+
 RBD_FEATURE_LAYERING = _RBD_FEATURE_LAYERING
 RBD_FEATURE_STRIPINGV2 = _RBD_FEATURE_STRIPINGV2
 RBD_FEATURE_EXCLUSIVE_LOCK = _RBD_FEATURE_EXCLUSIVE_LOCK
@@ -2994,6 +2996,14 @@ written." % (self.name, ret, length))
         :returns: :class:`MetadataIterator`
         """
         return MetadataIterator(self)
+
+    def notify_update(self):
+        """
+        Notify image watchers that the image header has been updated.
+        """
+        with nogil:
+            rbd_notify_update(self.image)
+
 
 cdef class LockOwnerIterator(object):
     """

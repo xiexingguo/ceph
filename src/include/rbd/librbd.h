@@ -860,6 +860,8 @@ CEPH_RBD_API int rbd_qos_get(rbd_image_t image,
                                 int *metaflag);
 CEPH_RBD_API int rbd_qos_del(rbd_image_t image, int flag);
 
+CEPH_RBD_API void rbd_notify_update(rbd_image_t image);
+
 #ifdef __cplusplus
 }
 #endif
