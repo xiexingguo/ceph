@@ -87,7 +87,6 @@ protected:
   std::map<string, imageperf_t> imgsmap;
   SafeTimer timer;
   set<int> last_adjusted_osds;
-  set<int> last_adjusted_primaries;
   utime_t last_adjust;
 
   static void _generate_command_map(map<string,cmd_vartype>& cmdmap,
@@ -162,10 +161,11 @@ public:
   void send_reset_recovery_limits(
     int who,
     uint8_t options,
+    double backfills_factor = 1.0,
     double bandwidth_factor = 1.0,
     double maxactive_factor = 1.0,
     double aggressive_factor = 1.0);
-  void clear_recovery_limits();
+  void clear_recovery_limits(int osd = -1, uint8_t options = 0);
   void maybe_reset_recovery_limits();
 };
 

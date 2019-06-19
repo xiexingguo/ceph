@@ -21,11 +21,12 @@
 /*
  * instruct an OSD to boost/unboost recovery/backfill priority
  */
-static const int OSD_RESET_RECOVERY_BANDWIDTH = 1;
-static const int OSD_RESET_RECOVERY_MAXACTIVE = 2;
+#define OSD_RESET_RECOVERY_BANDWIDTH    (1<<0)
+#define OSD_RESET_RECOVERY_MAXACTIVE    (1<<1)
+#define OSD_RESET_MAX_BACKFILLS         (1<<2)
 
 struct MOSDResetRecoveryLimits : public Message {
-  static const int HEAD_VERSION = 1;
+  static const int HEAD_VERSION = 2;
   static const int COMPAT_VERSION = 1;
 
   uuid_d  fsid;
@@ -33,12 +34,14 @@ struct MOSDResetRecoveryLimits : public Message {
   double bandwidth_factor;
   double maxactive_factor;
   double aggressive_factor;
+  double max_backfills_factor;
 
   MOSDResetRecoveryLimits() :
     Message(MSG_OSD_RESET_RECOVERY_LIMITS, HEAD_VERSION, COMPAT_VERSION) {}
   MOSDResetRecoveryLimits(
     const uuid_d& f,
     uint8_t ops,
+    double max_backfills,
     double bandwidth,
     double maxactive,
     double aggressive = 1.0) :
@@ -47,7 +50,8 @@ struct MOSDResetRecoveryLimits : public Message {
     options(ops),
     bandwidth_factor(bandwidth),
     maxactive_factor(maxactive),
-    aggressive_factor(aggressive) {}
+    aggressive_factor(aggressive),
+    max_backfills_factor(max_backfills) {}
 private:
   ~MOSDResetRecoveryLimits() {}
 
@@ -59,6 +63,7 @@ public:
     out << " bandwidth_factor=" << bandwidth_factor;
     out << " maxactive_factor=" << maxactive_factor;
     out << " aggressive_factor=" << aggressive_factor;
+    out << " max_backfills_factor=" << max_backfills_factor;
     out << ")";
   }
 
@@ -68,6 +73,8 @@ public:
     ::encode(bandwidth_factor, payload);
     ::encode(maxactive_factor, payload);
     ::encode(aggressive_factor, payload);
+    // v2 for backfills factor
+    ::encode(max_backfills_factor, payload);
   }
   void decode_payload() {
     bufferlist::iterator p = payload.begin();
@@ -76,6 +83,8 @@ public:
     ::decode(bandwidth_factor, p);
     ::decode(maxactive_factor, p);
     ::decode(aggressive_factor, p);
+    if (header.version >= 2)
+      ::decode(max_backfills_factor, p);
   }
 };
 

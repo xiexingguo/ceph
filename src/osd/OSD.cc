@@ -9869,6 +9869,16 @@ void OSD::handle_reset_recovery_limits(Message *m)
     }
     args += "--osd_recovery_max_active=" + ss.str();
   }
+  if (msg->options & OSD_RESET_MAX_BACKFILLS) {
+    auto base = conf->get_val<uint64_t>("osd_max_backfills_baseline");
+    uint64_t max_backfills = ceil(base * msg->max_backfills_factor);
+    stringstream ss;
+    ss << max_backfills;
+    if (args.length()) {
+      args += " ";
+    }
+    args += "--osd_max_backfills=" + ss.str();
+  }
   osd_lock.Unlock();
   dout(0) << __func__ << " do injectargs '" << args << "'" << dendl;
   r = conf->injectargs(args, &rs);
