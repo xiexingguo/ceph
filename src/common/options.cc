@@ -2629,7 +2629,7 @@ std::vector<Option> get_global_options() {
     .set_description(""),
 
     Option("osd_load_balancer_op_priority_mode", Option::TYPE_STR, Option::LEVEL_ADVANCED)
-    .set_default("default")
+    .set_default("client_op_prioritized")
     .set_enum_allowed({"default", "client_op_prioritized", "recovery_op_prioritized"})
     .set_description(""),
 
