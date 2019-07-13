@@ -155,7 +155,7 @@ namespace ceph {
 
   dmc::ClientInfo dmcQueue::client_info_func(const dmcClient& client) {
     // global client info obtainer, DO NOT USE
-    assert(0 == "implement me");
+    // ldout(cct, 0) << "client_info_func Do Not Use It" << dendl;
     return dmc::ClientInfo();
   }
 
