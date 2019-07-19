@@ -431,6 +431,13 @@ namespace librbd {
                          cls::rbd::TrashImageSpec *trash_spec);
     int trash_get(librados::IoCtx *ioctx, const std::string &id,
                   cls::rbd::TrashImageSpec *trash_spec);
+    void trash_state_set(librados::ObjectWriteOperation *op,
+                         const std::string &id,
+                         const cls::rbd::TrashImageState &trash_state,
+                         const cls::rbd::TrashImageState &expect_state);
+    int trash_state_set(librados::IoCtx *ioctx, const std::string &id,
+                        const cls::rbd::TrashImageState &trash_state,
+                        const cls::rbd::TrashImageState &expect_state);
 
   } // namespace cls_client
 } // namespace librbd

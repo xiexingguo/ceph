@@ -1468,7 +1468,19 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
         static_cast<cls::rbd::TrashImageSource>(source);
     cls::rbd::TrashImageSpec trash_spec(trash_source, image_name, ts,
                                         deferment_end_time);
+    trash_spec.state = cls::rbd::TRASH_IMAGE_STATE_MOVING;
     r = cls_client::trash_add(&io_ctx, image_id, trash_spec);
+
+    trash_spec.state = cls::rbd::TRASH_IMAGE_STATE_NORMAL;
+    int ret = cls_client::trash_state_set(&io_ctx, image_id,
+                                          trash_spec.state,
+                                          cls::rbd::TRASH_IMAGE_STATE_MOVING);
+    if (ret < 0 && ret != -EOPNOTSUPP) {
+      lderr(cct) << "error setting trash image state: "
+                 << cpp_strerror(ret) << dendl;
+      return ret;
+    }
+
     if (r < 0 && r != -EEXIST) {
       lderr(cct) << "error adding image " << image_name << " to rbd_trash"
                  << dendl;
@@ -1579,11 +1591,32 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
       lderr(cct) << "error: deferment time has not expired." << dendl;
       return -EPERM;
     }
+    if (trash_spec.state != cls::rbd::TRASH_IMAGE_STATE_NORMAL &&
+        trash_spec.state != cls::rbd::TRASH_IMAGE_STATE_REMOVING) {
+      lderr(cct) << "error: image is pending restoration." << dendl;
+      return -EBUSY;
+    }
+
+    r = cls_client::trash_state_set(&io_ctx, image_id,
+                                    cls::rbd::TRASH_IMAGE_STATE_REMOVING,
+                                    cls::rbd::TRASH_IMAGE_STATE_NORMAL);
+    if (r < 0 && r != -EOPNOTSUPP) {
+      lderr(cct) << "error setting trash image state: "
+                 << cpp_strerror(r) << dendl;
+      return r;
+    }
 
     r = remove(io_ctx, "", image_id, prog_ctx, false, true);
     if (r < 0) {
       lderr(cct) << "error removing image " << image_id
                  << ", which is pending deletion" << dendl;
+      int ret = cls_client::trash_state_set(&io_ctx, image_id,
+                                            cls::rbd::TRASH_IMAGE_STATE_NORMAL,
+                                            cls::rbd::TRASH_IMAGE_STATE_REMOVING);
+      if (ret < 0 && ret != -EOPNOTSUPP) {
+        lderr(cct) << "error setting trash image state: "
+                   << cpp_strerror(ret) << dendl;
+      }
       return r;
     }
     r = cls_client::trash_remove(&io_ctx, image_id);
@@ -1610,6 +1643,21 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
     }
 
     std::string image_name = image_new_name;
+    if (trash_spec.state != cls::rbd::TRASH_IMAGE_STATE_NORMAL &&
+        trash_spec.state != cls::rbd::TRASH_IMAGE_STATE_RESTORING) {
+      lderr(cct) << "error restoring image id " << image_id
+                 << ", which is pending deletion" << dendl;
+      return -EBUSY;
+    }
+    r = cls_client::trash_state_set(&io_ctx, image_id,
+                                    cls::rbd::TRASH_IMAGE_STATE_RESTORING,
+                                    cls::rbd::TRASH_IMAGE_STATE_NORMAL);
+    if (r < 0 && r != -EOPNOTSUPP) {
+      lderr(cct) << "error setting trash image state: "
+                 << cpp_strerror(r) << dendl;
+      return r;
+    }
+
     if (image_name.empty()) {
       // if user didn't specify a new name, let's try using the old name
       image_name = trash_spec.name;
@@ -1624,11 +1672,25 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
     if (r < 0 && r != -ENOENT) {
       lderr(cct) << "error checking if image " << image_name << " exists: "
                  << cpp_strerror(r) << dendl;
+      int ret = cls_client::trash_state_set(&io_ctx, image_id,
+                                            cls::rbd::TRASH_IMAGE_STATE_NORMAL,
+                                            cls::rbd::TRASH_IMAGE_STATE_RESTORING);
+      if (ret < 0 && ret != -EOPNOTSUPP) {
+        lderr(cct) << "error setting trash image state: "
+                   << cpp_strerror(ret) << dendl;
+      }
       return r;
     } else if (r != -ENOENT){
       // checking if we are recovering from an incomplete restore
       if (existing_id != image_id) {
         ldout(cct, 2) << "an image with the same name already exists" << dendl;
+        int r2 = cls_client::trash_state_set(&io_ctx, image_id,
+                                             cls::rbd::TRASH_IMAGE_STATE_NORMAL,
+                                             cls::rbd::TRASH_IMAGE_STATE_RESTORING);
+        if (r2 < 0 && r2 != -EOPNOTSUPP) {
+        lderr(cct) << "error setting trash image state: "
+                   << cpp_strerror(r2) << dendl;
+       }
         return -EEXIST;
       }
       create_id_obj = false;

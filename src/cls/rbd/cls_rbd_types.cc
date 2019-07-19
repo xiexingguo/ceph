@@ -418,20 +418,24 @@ std::ostream& operator<<(std::ostream& os, const UnknownSnapshotNamespace& ns) {
 }
 
 void TrashImageSpec::encode(bufferlist& bl) const {
-  ENCODE_START(1, 1, bl);
+  ENCODE_START(2, 1, bl);
   ::encode(source, bl);
   ::encode(name, bl);
   ::encode(deletion_time, bl);
   ::encode(deferment_end_time, bl);
+  ::encode(state, bl);
   ENCODE_FINISH(bl);
 }
 
 void TrashImageSpec::decode(bufferlist::iterator &it) {
-  DECODE_START(1, it);
+  DECODE_START(2, it);
   ::decode(source, it);
   ::decode(name, it);
   ::decode(deletion_time, it);
   ::decode(deferment_end_time, it);
+  if (struct_v >= 2) {
+    ::decode(state, it);
+  }
   DECODE_FINISH(it);
 }
 
