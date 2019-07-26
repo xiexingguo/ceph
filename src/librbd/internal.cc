@@ -266,7 +266,7 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
     info.num_objs = Striper::get_num_objects(ictx->layout, info.size);
     info.order = obj_order;
     strncpy(info.block_name_prefix, ictx->object_prefix.c_str(),
-            RBD_MAX_BLOCK_NAME_SIZE);
+            RBD_MAX_BLOCK_NAME_SIZE - 1);
     info.block_name_prefix[RBD_MAX_BLOCK_NAME_SIZE - 1] = '\0';
 
     // clear deprecated fields

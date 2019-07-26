@@ -533,7 +533,8 @@ struct ObjectOperation {
 	      obj_watch_t ow;
 	      ostringstream sa;
 	      sa << i->addr;
-	      strncpy(ow.addr, sa.str().c_str(), 256);
+	      strncpy(ow.addr, sa.str().c_str(), sizeof(ow.addr) - 1);
+             ow.addr[sizeof(ow.addr) - 1] = '\0';
 	      ow.watcher_id = i->name.num();
 	      ow.cookie = i->cookie;
 	      ow.timeout_seconds = i->timeout_seconds;
