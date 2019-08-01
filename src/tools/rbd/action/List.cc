@@ -33,6 +33,7 @@ struct WorkerEntry {
   librbd::RBD::AioCompletion* completion;
   WorkerState state;
   string name;
+  string id;
 
   WorkerEntry() {
     state = STATE_IDLE;
@@ -77,6 +78,7 @@ int list_process_image(librados::Rados* rados, WorkerEntry* w, bool lflag, Forma
   if (f) {
     f->open_object_section("image");
     f->dump_string("image", w->name);
+    f->dump_string("id", w->id);
     f->dump_unsigned("size", info.size);
     if (has_parent) {
       f->open_object_section("parent");
@@ -117,7 +119,9 @@ int list_process_image(librados::Rados* rados, WorkerEntry* w, bool lflag, Forma
       if (f) {
         f->open_object_section("snapshot");
         f->dump_string("image", w->name);
+        f->dump_string("id", w->id);
         f->dump_string("snapshot", s->name);
+        f->dump_unsigned("snapshot_id", s->id);
         f->dump_unsigned("size", s->size);
         if (has_parent) {
           f->open_object_section("parent");
@@ -146,7 +150,7 @@ int list_process_image(librados::Rados* rados, WorkerEntry* w, bool lflag, Forma
 
 int do_list(std::string &pool_name, bool lflag, int threads, Formatter *f) {
   std::vector<WorkerEntry*> workers;
-  std::vector<std::string> names;
+  std::vector<librbd::image_spec_t> images;
   librados::Rados rados;
   librbd::RBD rbd;
   librados::IoCtx ioctx;
@@ -163,19 +167,18 @@ int do_list(std::string &pool_name, bool lflag, int threads, Formatter *f) {
     return r;
   }
 
-  r = rbd.list(ioctx, names);
+  r = rbd.list2(ioctx, &images);
   if (r < 0)
     return r;
 
   if (!lflag) {
     if (f)
       f->open_array_section("images");
-    for (std::vector<std::string>::const_iterator i = names.begin();
-       i != names.end(); ++i) {
+    for (auto& image : images) {
        if (f)
-	 f->dump_string("name", *i);
+	 f->dump_string("name", image.name);
        else
-	 std::cout << *i << std::endl;
+	 std::cout << image.name << std::endl;
     }
     if (f) {
       f->close_section();
@@ -197,11 +200,12 @@ int do_list(std::string &pool_name, bool lflag, int threads, Formatter *f) {
     tbl.define_column("LOCK", TextTable::LEFT, TextTable::LEFT);
   }
 
-  for (int left = 0; left < std::min(threads, (int)names.size()); left++) {
+  for (size_t left = 0; left < std::min<size_t>(threads, images.size());
+       left++) {
     workers.push_back(new WorkerEntry());
   }
 
-  auto i = names.begin();
+  auto i = images.begin();
   while (true) {
     size_t workers_idle = 0;
     for (auto comp : workers) {
@@ -213,13 +217,15 @@ int do_list(std::string &pool_name, bool lflag, int threads, Formatter *f) {
 	  comp->completion = nullptr;
 	  // we want it to fall through in this case
 	case STATE_IDLE:
-	  if (i == names.end()) {
+	  if (i == images.end()) {
 	    workers_idle++;
 	    continue;
 	  }
-	  comp->name = *i;
+	  comp->name = i->name;
+          comp->id = i->id;
 	  comp->completion = new librbd::RBD::AioCompletion(nullptr, nullptr);
-	  r = rbd.aio_open_read_only(ioctx, comp->img, i->c_str(), NULL, comp->completion);
+          r = rbd.aio_open_read_only(ioctx, comp->img, i->name.c_str(), nullptr,
+                                     comp->completion);
 	  i++;
 	  comp->state = STATE_OPENED;
 	  break;
@@ -233,8 +239,8 @@ int do_list(std::string &pool_name, bool lflag, int threads, Formatter *f) {
 	  comp->completion->release();
 	  if (r < 0) {
 	    if (r != -ENOENT) {
-	      std::cerr << "rbd: error opening " << *i << ": " << cpp_strerror(r)
-			<< std::endl;
+              std::cerr << "rbd: error opening " << i->name << ": "
+                        << cpp_strerror(r) << std::endl;
 	    }
 	    // in any event, continue to next image
 	    comp->state = STATE_IDLE;
@@ -242,8 +248,8 @@ int do_list(std::string &pool_name, bool lflag, int threads, Formatter *f) {
 	  }
 	  r = list_process_image(&rados, comp, lflag, f, tbl);
 	  if (r < 0) {
-	      std::cerr << "rbd: error processing image  " << comp->name << ": " << cpp_strerror(r)
-			<< std::endl;
+            std::cerr << "rbd: error processing image " << comp->name << ": "
+                      << cpp_strerror(r) << std::endl;
 	  }
 	  comp->completion = new librbd::RBD::AioCompletion(nullptr, nullptr);
 	  r = comp->img.aio_close(comp->completion);
@@ -259,7 +265,7 @@ int do_list(std::string &pool_name, bool lflag, int threads, Formatter *f) {
   if (f) {
     f->close_section();
     f->flush(std::cout);
-  } else if (!names.empty()) {
+  } else if (!images.empty()) {
     std::cout << tbl;
   }
 
