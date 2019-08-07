@@ -18,6 +18,8 @@
 #define CEPH_MDCACHE_H
 
 #include <boost/utility/string_view.hpp>
+#include <atomic>
+#include <thread>
 
 #include "common/DecayCounter.h"
 #include "include/types.h"
@@ -1245,6 +1247,13 @@ public:
 public:
   /* Because exports may fail, this set lets us keep track of inodes that need exporting. */
   std::set<CInode *> export_pin_queue;
+
+private:
+  std::thread upkeeper;
+  std::mutex upkeep_mutex;
+  std::condition_variable upkeep_cvar;
+  time upkeep_last_trim = time::min();
+  std::atomic<bool> upkeep_trim_shutdown{false};
 };
 
 class C_MDS_RetryRequest : public MDSInternalContext {

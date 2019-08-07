@@ -219,6 +219,10 @@ class MDSRank {
     bool is_stopped() const { return mdsmap->is_stopped(whoami); }
     bool is_cluster_degraded() const { return cluster_degraded; }
 
+    bool is_cache_trimmable() const {
+      return is_clientreplay() || is_active() || is_stopping();
+    }
+
     void handle_write_error(int err);
 
     void handle_conf_change(const struct md_config_t *conf,
