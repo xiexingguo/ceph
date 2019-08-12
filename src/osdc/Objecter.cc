@@ -2570,7 +2570,8 @@ void Objecter::_op_submit(Op *op, shunique_lock& sul, ceph_tid_t *ptid)
 		   << dendl;
     op->target.paused = true;
   } else if (!monc->is_connected() &&
-             cct->_conf->objecter_pause_op_on_mon_lost) {
+             cct->_conf->objecter_pause_op_on_mon_lost &&
+             op->should_resend) {
     ldout(cct, 10) << " mon lost, paused " << op << " tid " << op->tid
 		   << dendl;
     op->target.paused = true;
