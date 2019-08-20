@@ -1432,8 +1432,6 @@ public:
 	    continue;
 	  if (i->is_error())
 	    continue;
-    if (!i->is_delete())
-        missing.merge(*i);
 	  if (did.count(i->soid)) continue;
 	  did.insert(i->soid);
 
@@ -1462,8 +1460,7 @@ public:
 		assert(miter->second.have == oi.version || miter->second.have == eversion_t());
 		checked.insert(i->soid);
 	      } else {
-		missing.add(i->soid, i->version, oi.version, i->is_delete(), false);
-		missing.merge(*i);
+		missing.add(i->soid, i->version, oi.version, i->is_delete());
 	      }
 	    }
 	  } else {
@@ -1481,8 +1478,7 @@ public:
 	      }
 	      checked.insert(i->soid);
 	    } else {
-	      missing.add(i->soid, i->version, eversion_t(), i->is_delete(), false);
-	      missing.merge(*i);
+	      missing.add(i->soid, i->version, eversion_t(), i->is_delete());
 	    }
 	  }
 	}
