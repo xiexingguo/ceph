@@ -972,6 +972,7 @@ protected:
 	assert(!missing.is_missing(hoid));
       }
       missing.revise_have(hoid, eversion_t());
+      missing.mark_fully_dirty(hoid);
       if (rollbacker) {
 	if (!object_not_in_store) {
 	  rollbacker->remove(hoid);
