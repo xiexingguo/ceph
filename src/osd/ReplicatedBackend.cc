@@ -1922,7 +1922,7 @@ bool ReplicatedBackend::handle_pull_response(
     if (attrset.find(SS_ATTR) != attrset.end()) {
       bufferlist ssbv = attrset.at(SS_ATTR);
       SnapSet ss(ssbv);
-      assert(ss.seq  == pi.obc->ssc->snapset.seq);
+      assert(!pi.obc->ssc->exists || ss.seq  == pi.obc->ssc->snapset.seq);
     }
     pi.recovery_info.oi = pi.obc->obs.oi;
     pi.recovery_info = recalc_subsets(
