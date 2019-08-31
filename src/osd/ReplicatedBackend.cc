@@ -279,6 +279,20 @@ int ReplicatedBackend::objects_read_sync(
   return store->read(ch, ghobject_t(hoid), off, len, *bl, op_flags);
 }
 
+int ReplicatedBackend::objects_readv_sync(
+  const hobject_t &hoid,
+  map<uint64_t, uint64_t>& m,
+  uint32_t op_flags,
+  bufferlist *bl)
+{
+  interval_set<uint64_t> im(m);
+  auto r = store->readv(ch, ghobject_t(hoid), im, *bl, op_flags);
+  if (r >= 0) {
+    im.move_into(m);
+  }
+  return r;
+}
+
 struct AsyncReadCallback : public GenContext<ThreadPool::TPHandle&> {
   int r;
   Context *c;
@@ -291,6 +305,7 @@ struct AsyncReadCallback : public GenContext<ThreadPool::TPHandle&> {
     delete c;
   }
 };
+
 void ReplicatedBackend::objects_read_async(
   const hobject_t &hoid,
   const list<pair<boost::tuple<uint64_t, uint64_t, uint32_t>,
