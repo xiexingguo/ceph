@@ -409,6 +409,17 @@ void AvlAllocator::dump()
   }
 }
 
+void AvlAllocator::dump(std::function<void(uint64_t offset, uint64_t length)> notify)
+{
+  std::lock_guard<std::mutex> l(lock);
+  for (void *p = avl_first(&range_size_tree);
+       p;
+       p = AVL_NEXT(&range_size_tree, p)) {
+    range_seg_t *rs = static_cast<range_seg_t *>(p);
+    notify(rs->rs_start, rs->rs_end - rs->rs_start);
+  }
+}
+
 void AvlAllocator::init_add_free(uint64_t offset, uint64_t length)
 {
   std::lock_guard<std::mutex> l(lock);

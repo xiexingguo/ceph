@@ -2353,6 +2353,9 @@ public:
   int write_meta(const std::string& key, const std::string& value) override;
   int read_meta(const std::string& key, std::string *value) override;
 
+  int cold_open();
+  int cold_close();
+  int dump_free(std::function<void(uint64_t offset, uint64_t length)> notify);
 
   int fsck(bool deep) override {
     return _fsck(deep, false);

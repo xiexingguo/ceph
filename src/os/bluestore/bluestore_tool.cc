@@ -147,7 +147,7 @@ int main(int argc, char **argv)
     ;
   po::options_description po_positional("Positional options");
   po_positional.add_options()
-    ("command", po::value<string>(&action), "fsck, repair, bluefs-export, bluefs-bdev-sizes, bluefs-bdev-expand, show-label, set-label-key, rm-label-key, prime-osd-dir")
+    ("command", po::value<string>(&action), "fsck, repair, bluefs-export, bluefs-bdev-sizes, bluefs-bdev-expand, show-label, set-label-key, rm-label-key, prime-osd-dir, dump-free")
     ;
   po::options_description po_all("All options");
   po_all.add(po_options).add(po_positional);
@@ -177,7 +177,9 @@ int main(int argc, char **argv)
     exit(EXIT_FAILURE);
   }
 
-  if (action == "fsck" || action == "repair") {
+  if (action == "fsck" ||
+      action == "repair" ||
+      action == "dump-free") {
     if (path.empty()) {
       cerr << "must specify bluestore path" << std::endl;
       exit(EXIT_FAILURE);
@@ -281,14 +283,42 @@ int main(int argc, char **argv)
   common_init_finish(cct.get());
 
   if (action == "fsck" ||
-      action == "repair") {
+      action == "repair" ||
+      action == "dump-free") {
     validate_path(cct.get(), path, false);
     BlueStore bluestore(cct.get(), path);
     int r;
     if (action == "fsck") {
       r = bluestore.fsck(fsck_deep);
-    } else {
+    } else if (action == "repair") {
       r = bluestore.repair(fsck_deep);
+    } else {
+      r = bluestore.cold_open();
+      if (r < 0) {
+        cerr << "error from fsck: " << cpp_strerror(r) << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      stringstream ss;
+      Formatter* f = Formatter::create("json-pretty", "json-pretty", "json-pretty");
+      f->open_array_section("free_segments");
+      auto iterated_allocation = [&](size_t off, size_t len) {
+        ceph_assert(len > 0);
+        f->open_object_section("free_segment");
+        char off_hex[30];
+        char len_hex[30];
+        snprintf(off_hex, sizeof(off_hex) - 1, "0x%lx", off);
+        snprintf(len_hex, sizeof(len_hex) - 1, "0x%lx", len);
+        f->dump_string("offset", off_hex);
+        f->dump_string("length", len_hex);
+        f->close_section();
+      };
+
+      bluestore.dump_free(iterated_allocation);
+      f->close_section();
+      f->flush(ss);
+      cout << ss.str() << std::endl;
+      bluestore.cold_close();
+      delete f;
     }
     if (r < 0) {
       cerr << "error from fsck: " << cpp_strerror(r) << std::endl;

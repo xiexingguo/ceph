@@ -5711,6 +5711,73 @@ int BlueStore::umount()
   return 0;
 }
 
+int BlueStore::cold_open()
+{
+ int r = _open_path();
+  if (r < 0)
+    return r;
+  r = _open_fsid(false);
+  if (r < 0)
+    goto out_path;
+
+  r = _read_fsid(&fsid);
+  if (r < 0)
+    goto out_fsid;
+
+  r = _lock_fsid();
+  if (r < 0)
+    goto out_fsid;
+
+  r = _open_bdev(false);
+  if (r < 0)
+    goto out_fsid;
+
+  r = _open_db(false);
+  if (r < 0)
+    goto out_bdev;
+
+  r = _open_super_meta();
+  if (r < 0)
+    goto out_db;
+
+  r = _open_fm(false);
+  if (r < 0)
+    goto out_db;
+
+  r = _open_alloc();
+  if (r < 0)
+    goto out_fm;
+
+  return 0;
+
+ out_fm:
+  _close_fm();
+ out_db:
+  _close_db();
+ out_bdev:
+  _close_bdev();
+ out_fsid:
+  _close_fsid();
+ out_path:
+  _close_path();
+  return r;
+}
+
+int BlueStore::cold_close()
+{
+  _close_alloc();
+  _close_fm();
+  _close_db();
+  _close_bdev();
+  _close_fsid();
+  _close_path();
+  return 0;
+}
+
+int BlueStore::dump_free(std::function<void(uint64_t offset, uint64_t length)> notify) {
+  alloc->dump(notify);
+}
+
 static void apply(uint64_t off,
                   uint64_t len,
                   uint64_t granularity,

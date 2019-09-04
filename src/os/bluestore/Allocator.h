@@ -12,6 +12,7 @@
 #ifndef CEPH_OS_BLUESTORE_ALLOCATOR_H
 #define CEPH_OS_BLUESTORE_ALLOCATOR_H
 
+#include <functional>
 #include <ostream>
 #include "include/assert.h"
 #include "os/bluestore/bluestore_types.h"
@@ -47,6 +48,9 @@ public:
     uint64_t offset, uint64_t length) = 0;
 
   virtual void dump() = 0;
+  virtual void dump(std::function<void(uint64_t offset, uint64_t length)> notify) {
+    notify(0, 0);
+  }
 
   virtual void init_add_free(uint64_t offset, uint64_t length) = 0;
   virtual void init_rm_free(uint64_t offset, uint64_t length) = 0;
