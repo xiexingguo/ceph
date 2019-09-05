@@ -213,6 +213,10 @@ int AvlAllocator::_allocate(
   uint64_t *offset,
   uint64_t *length)
 {
+  if (size < unit) {
+    return -ENOSPC;
+  }
+
   std::lock_guard<std::mutex> l(lock);
   uint64_t max_size = 0;
   void *p = avl_last(&range_size_tree);
@@ -222,12 +226,25 @@ int AvlAllocator::_allocate(
   }
 
   bool force_range_size_alloc = false;
-  if (max_size < size) {
+  // the actual allocable range for a segment would be:
+  //    (rs_start + unit, rs_end - unit)
+  // add enough headroom here to ensure we fall back to
+  // best-fit if the required alloc size is approaching
+  // max continuous free size
+  if (max_size < size + 2 * unit) {
     if (max_size < unit) {
       return -ENOSPC;
     }
-    size = P2ALIGN(max_size, unit);
+    // make sure size won't overflow
+    // otherwise we are returning more than caller wanted
+    size = std::min(P2ALIGN(max_size, unit), size);
     assert(size > 0);
+
+    // below here we're either running low on space,
+    // or the space tree just get too fragmented.
+    // force to use a minimal alignment for the offset check
+    // to return as much space as we can!
+    unit = 4 << 10;
     force_range_size_alloc = true;
   }
 
