@@ -1868,8 +1868,8 @@ int BlueFS::_allocate(uint8_t id, uint64_t len,
     else
       derr << __func__ << " failed to allocate 0x" << std::hex << left
 	   << " on bdev " << (int)id << ", dne" << std::dec << dendl;
-    if (alloc[id]) 
-      alloc[id]->dump(); 
+    // if (alloc[id]) 
+      // alloc[id]->dump(); 
     return -ENOSPC;
   }
 

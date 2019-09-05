@@ -5156,7 +5156,7 @@ int BlueStore::_balance_bluefs_freespace(PExtentVector *extents)
       dout(1) << __func__ << " no allocate on 0x" << std::hex << gift
               << " min_alloc_size 0x" << min_alloc_size << std::dec << dendl;
       alloc->unreserve(gift);
-      alloc->dump();
+      // alloc->dump();
       return 0;
     } else if (alloc_len < (int64_t)gift) {
       dout(1) << __func__ << " insufficient allocate on 0x" << std::hex << gift
@@ -5164,7 +5164,7 @@ int BlueStore::_balance_bluefs_freespace(PExtentVector *extents)
 	      << " allocated 0x" << alloc_len
 	      << std::dec << dendl;
       alloc->unreserve(gift - alloc_len);
-      alloc->dump();
+      // alloc->dump();
     }
     for (auto& p : exts) {
       bluestore_pextent_t e = bluestore_pextent_t(p);
