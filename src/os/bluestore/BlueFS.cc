@@ -1846,7 +1846,7 @@ int BlueFS::_allocate(uint8_t id, uint64_t len,
   }
   if (r < 0 || (alloc_len < (int64_t)left)) {
     if (r == 0) {
-      alloc[id]->unreserve(left - alloc_len);
+      alloc[id]->unreserve(left - std::max(alloc_len, (int64_t)0));
       for (auto& p : extents) {
         alloc[id]->release(p.offset, p.length);
       }
