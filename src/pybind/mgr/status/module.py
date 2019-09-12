@@ -4,10 +4,10 @@ High level status display commands
 """
 
 from collections import defaultdict
-from prettytable import PrettyTable
+from ceph_prettytable import PrettyTable
 import errno
 import fnmatch
-import prettytable
+import ceph_prettytable
 import six
 
 from mgr_module import MgrModule
@@ -128,7 +128,7 @@ class Module(MgrModule):
 
             rank_table = PrettyTable(
                 ("Rank", "State", "MDS", "Activity", "dns", "inos"),
-                hrules=prettytable.FRAME
+                hrules=ceph_prettytable.FRAME
             )
 
             mdsmap = filesystem['mdsmap']
