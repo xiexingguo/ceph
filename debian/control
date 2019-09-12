@@ -388,7 +388,6 @@ Package: ceph-common
 Architecture: linux-any
 Depends: librbd1 (= ${binary:Version}),
          python-cephfs (= ${binary:Version}),
-         python-prettytable,
          python-rados (= ${binary:Version}),
          python-rbd (= ${binary:Version}),
          python-rgw (= ${binary:Version}),

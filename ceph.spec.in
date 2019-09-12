@@ -286,10 +286,10 @@ Requires:	python-rbd = %{_epoch_prefix}%{version}-%{release}
 Requires:	python-cephfs = %{_epoch_prefix}%{version}-%{release}
 Requires:	python-rgw = %{_epoch_prefix}%{version}-%{release}
 %if 0%{?fedora} || 0%{?rhel}
-Requires:	python-prettytable
+#Requires:	python-prettytable
 %endif
 %if 0%{?suse_version}
-Requires:	python-PrettyTable
+#Requires:	python-PrettyTable
 %endif
 %{?systemd_requires}
 %if 0%{?suse_version}
