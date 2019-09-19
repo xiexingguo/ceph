@@ -184,3 +184,16 @@ fail:
   return (errno = save_errno, -1);
 #endif
 }
+
+char *ceph_strerror_r(int errnum, char *buf, size_t buflen)
+{
+#ifdef STRERROR_R_CHAR_P
+  return strerror_r(errnum, buf, buflen);
+#else
+  if (strerror_r(errnum, buf, buflen)) {
+    snprintf(buf, buflen, "Unknown error %d", errnum);
+  }
+  return buf;
+#endif
+}
+
