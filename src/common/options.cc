@@ -1484,6 +1484,11 @@ std::vector<Option> get_global_options() {
     .add_service("mgr")
     .set_description("issue REQUEST_STUCK health error if OSD ops are slower than is age (seconds)"),
 
+    Option("mon_osd_prime_pg_upmap", Option::TYPE_BOOL, Option::LEVEL_DEV)
+    .set_default(true)
+    .add_service("mon")
+    .set_description("automatically prime pg_upmap for specific osds after a map change"),
+
     Option("mon_osd_prime_pg_temp", Option::TYPE_BOOL, Option::LEVEL_DEV)
     .set_default(true)
     .add_service("mon")

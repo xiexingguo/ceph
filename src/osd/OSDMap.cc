@@ -1942,7 +1942,9 @@ void OSDMap::clean_pg_upmaps(
 {
   for (auto &pg: to_cancel) {
     auto i = pending_inc->new_pg_upmap.find(pg);
-    if (i != pending_inc->new_pg_upmap.end()) {
+    if (i != pending_inc->new_pg_upmap.end() &&
+        !std::all_of(i->second.begin(), i->second.end(),
+                     [&](const auto o) { return is_up(o) && is_in(o); })) {
       ldout(cct, 10) << __func__ << " cancel invalid pending "
                      << "pg_upmap entry "
                      << i->first << "->" << i->second
@@ -1950,7 +1952,9 @@ void OSDMap::clean_pg_upmaps(
       pending_inc->new_pg_upmap.erase(i);
     }
     auto j = pg_upmap.find(pg);
-    if (j != pg_upmap.end()) {
+    if (j != pg_upmap.end() &&
+        !std::all_of(j->second.begin(), j->second.end(),
+                     [&](const auto o) { return is_up(o) && is_in(o); })) {
       ldout(cct, 10) << __func__ << " cancel invalid pg_upmap entry "
                      << j->first << "->" << j->second
                      << dendl;
@@ -4521,8 +4525,17 @@ int OSDMap::calc_pg_upmaps(
   OSDMap::Incremental *pending_inc)
 {
   ldout(cct, 10) << __func__ << " pools " << only_pools << dendl;
+  auto target_change = max;
   OSDMap tmp;
   tmp.deepish_copy_from(*this);
+  // temporarily drop all pg_upmaps to get the real pg distribution
+  // this way calc_pg_upmaps could reliably skip any intermediate
+  // suboptimal results
+  OSDMap::Incremental temp_inc(epoch + 1);
+  temp_inc.fsid = fsid;
+  for (auto& p : pg_upmap)
+    temp_inc.old_pg_upmap.insert(p.first);
+  tmp.apply_incremental(temp_inc);
   int num_changed = 0;
   map<int,set<pg_t>> pgs_by_osd;
   int total_pgs = 0;
@@ -4601,8 +4614,10 @@ int OSDMap::calc_pg_upmaps(
     deviation_osd.insert(make_pair(deviation, i.first));
     stddev += deviation * deviation;
   }
-  if (stddev <= cct->_conf.get_val<double>("osd_calc_pg_upmaps_max_stddev")) {
-    ldout(cct, 10) << __func__ << " distribution is almost perfect"
+  if (stddev <= cct->_conf.get_val<double>("osd_calc_pg_upmaps_max_stddev") &&
+      pg_upmap.empty()) {
+    ldout(cct, 10) << __func__ << " distribution is almost perfect "
+                   << "and no upmap"
                    << dendl;
     return 0;
   }
@@ -4974,6 +4989,7 @@ int OSDMap::calc_pg_upmaps(
       ldout(cct, 10) << " unmap pg " << i << dendl;
       ceph_assert(tmp.pg_upmap_items.count(i));
       tmp.pg_upmap_items.erase(i);
+      pending_inc->old_pg_upmap.insert(i); // drop pg_upmap too
       pending_inc->old_pg_upmap_items.insert(i);
       ++num_changed;
     }
@@ -4982,8 +4998,23 @@ int OSDMap::calc_pg_upmaps(
                      << " new pg_upmap_items " << i.second
                      << dendl;
       tmp.pg_upmap_items[i.first] = i.second;
+      pending_inc->old_pg_upmap.insert(i.first);
       pending_inc->new_pg_upmap_items[i.first] = i.second;
       ++num_changed;
+    }
+  }
+  if (num_changed < target_change) {
+    // we fail to find enough changes, slowly let go of pg_upmaps (if any)
+    for (auto& p : pg_upmap) {
+      auto& pgid = p.first;
+      auto& up = p.second;
+      if (!only_pools.empty() && !only_pools.count(pgid.pool()))
+        continue;
+      ldout(cct, 10) << __func__ << " cancel upmap " << up << " for pg " << pgid
+                     << dendl;
+      pending_inc->old_pg_upmap.insert(pgid);
+      if (++num_changed >= target_change)
+        break;
     }
   }
   ldout(cct, 10) << " num_changed = " << num_changed << dendl;
