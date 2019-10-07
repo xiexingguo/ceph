@@ -177,7 +177,7 @@ def init_config():
         cfg.read(config_locations)
     else:
         if not os.path.isfile(args.config):
-            print "Could not open configuration file %s" % args.config
+            print("Could not open configuration file %s" % args.config)
             sys.exit(1)
 
         cfg.read(args.config)
@@ -269,7 +269,8 @@ def generate_app(config):
 # Initialize the configuration and generate the Application
 config = init_config()
 if config == None:
-    print "Could not parse configuration file. Tried to parse %s" % config_locations
+    print("Could not parse configuration file. "
+          "Tried to parse %s" % config_locations)
     sys.exit(1)
 
 app = generate_app(config)
