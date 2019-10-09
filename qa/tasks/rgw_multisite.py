@@ -236,7 +236,7 @@ def extract_clusters_and_gateways(ctx, role_endpoints):
     """ create cluster and gateway instances for all of the radosgw roles """
     clusters = {}
     gateways = {}
-    for role, (host, port) in role_endpoints.iteritems():
+    for role, (host, port) in role_endpoints.items():
         cluster_name, daemon_type, client_id = misc.split_role(role)
         # find or create the cluster by name
         cluster = clusters.get(cluster_name)

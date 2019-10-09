@@ -25,7 +25,7 @@ def setup_dnsmasq(remote, cnames):
     # add address entries to /etc/dnsmasq.d/ceph
     dnsmasq = "server=8.8.8.8\nserver=8.8.4.4\n"
     address_template = "address=/{cname}/{ip_address}\n"
-    for cname, ip_address in cnames.iteritems():
+    for cname, ip_address in cnames.items():
         dnsmasq += address_template.format(cname=cname, ip_address=ip_address)
     misc.sudo_write_file(remote, '/etc/dnsmasq.d/ceph', dnsmasq)
 
@@ -72,7 +72,7 @@ def task(ctx, config):
 
     # multiple roles may map to the same remote, so collect names by remote
     remote_names = {}
-    for role, cnames in config.iteritems():
+    for role, cnames in config.items():
         remote = get_remote_for_role(ctx, role)
         if remote is None:
             raise ConfigError('no remote for role %s' % role)
@@ -85,7 +85,7 @@ def task(ctx, config):
                 names[cname] = remote.ip_address
         elif isinstance(cnames, dict):
             # when given a dict, look up the remote ip for each
-            for cname, client in cnames.iteritems():
+            for cname, client in cnames.items():
                 r = get_remote_for_role(ctx, client)
                 if r is None:
                     raise ConfigError('no remote for role %s' % client)
@@ -95,7 +95,7 @@ def task(ctx, config):
 
     # run a subtask for each unique remote
     subtasks = []
-    for remote, cnames in remote_names.iteritems():
+    for remote, cnames in remote_names.items():
         subtasks.extend([ lambda r=remote, cn=cnames: setup_dnsmasq(r, cn) ])
 
     with contextutil.nested(*subtasks):

@@ -95,7 +95,7 @@ def create_users(ctx, config):
         s3tests_conf = config['s3tests_conf'][client]
         s3tests_conf.setdefault('fixtures', {})
         s3tests_conf['fixtures'].setdefault('bucket prefix', 'test-' + client + '-{random}-')
-        for section, user in users.iteritems():
+        for section, user in users.items():
             _config_user(s3tests_conf, section, '{user}.{client}'.format(user=user, client=client))
             log.debug('Creating user {user} on {host}'.format(user=s3tests_conf[section]['user_id'], host=client))
             cluster_name, daemon_type, client_id = teuthology.split_role(client)
@@ -148,7 +148,7 @@ def configure(ctx, config):
     assert isinstance(config, dict)
     log.info('Configuring s3-tests...')
     testdir = teuthology.get_testdir(ctx)
-    for client, properties in config['clients'].iteritems():
+    for client, properties in config['clients'].items():
         s3tests_conf = config['s3tests_conf'][client]
         if properties is not None and 'rgw_server' in properties:
             host = None
@@ -184,7 +184,7 @@ def configure(ctx, config):
 
     log.info('Configuring boto...')
     boto_src = os.path.join(os.path.dirname(__file__), 'boto.cfg.template')
-    for client, properties in config['clients'].iteritems():
+    for client, properties in config['clients'].items():
         with file(boto_src, 'rb') as f:
             (remote,) = ctx.cluster.only(client).remotes.keys()
             conf = f.read().format(
@@ -201,7 +201,7 @@ def configure(ctx, config):
 
     finally:
         log.info('Cleaning up boto...')
-        for client, properties in config['clients'].iteritems():
+        for client, properties in config['clients'].items():
             (remote,) = ctx.cluster.only(client).remotes.keys()
             remote.run(
                 args=[
@@ -222,7 +222,7 @@ def run_tests(ctx, config):
     testdir = teuthology.get_testdir(ctx)
     # civetweb > 1.8 && beast parsers are strict on rfc2616
     attrs = ["!fails_on_rgw", "!lifecycle_expiration", "!fails_strict_rfc2616"]
-    for client, client_config in config.iteritems():
+    for client, client_config in config.items():
         args = [
             'S3TEST_CONF={tdir}/archive/s3-tests.{client}.conf'.format(tdir=testdir, client=client),
             'BOTO_CONFIG={tdir}/boto.cfg'.format(tdir=testdir),
@@ -260,7 +260,7 @@ def scan_for_leaked_encryption_keys(ctx, config):
 
         log.debug('Scanning radosgw logs for leaked encryption keys...')
         procs = list()
-        for client, client_config in config.iteritems():
+        for client, client_config in config.items():
             if not client_config.get('scan_for_encryption_keys', True):
                 continue
             cluster_name, daemon_type, client_id = teuthology.split_role(client)

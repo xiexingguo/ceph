@@ -76,7 +76,7 @@ def create_users(ctx, config):
     for client in config['clients']:
         cluster_name, daemon_type, client_id = teuthology.split_role(client)
         testswift_conf = config['testswift_conf'][client]
-        for suffix, user in users.iteritems():
+        for suffix, user in users.items():
             _config_user(testswift_conf, '{user}.{client}'.format(user=user, client=client), user, suffix)
             ctx.cluster.only(client).run(
                 args=[
@@ -124,7 +124,7 @@ def configure(ctx, config):
     assert isinstance(config, dict)
     log.info('Configuring testswift...')
     testdir = teuthology.get_testdir(ctx)
-    for client, properties in config['clients'].iteritems():
+    for client, properties in config['clients'].items():
         log.info('client={c}'.format(c=client))
         log.info('config={c}'.format(c=config))
         testswift_conf = config['testswift_conf'][client]
@@ -167,7 +167,7 @@ def run_tests(ctx, config):
     """
     assert isinstance(config, dict)
     testdir = teuthology.get_testdir(ctx)
-    for client, client_config in config.iteritems():
+    for client, client_config in config.items():
         args = [
                 'SWIFT_TEST_CONFIG_FILE={tdir}/archive/testswift.{client}.conf'.format(tdir=testdir, client=client),
                 '{tdir}/swift/virtualenv/bin/nosetests'.format(tdir=testdir),
