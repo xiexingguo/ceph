@@ -269,7 +269,7 @@ void ImageWatcher<I>::notify_rename(const std::string &image_name,
 }
 
 template <typename I>
-void ImageWatcher<I>::notify_qos_update(int rsv, int wgt, int lmt, int bdw,
+void ImageWatcher<I>::notify_qos_update(int64_t rsv, int64_t wgt, int64_t lmt, int64_t bdw,
                                              Context *on_finish) {
   ldout(m_image_ctx.cct, 10) << this << ": " << __func__
                              << " [ " << rsv << " " << wgt << " "

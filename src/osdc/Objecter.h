@@ -2104,7 +2104,7 @@ private:
   void start(const OSDMap *o = nullptr);
   void shutdown();
 
-  int update_qos(int res = -1, int wgt = -1, int lim = -1, int bdw = -1);
+  int update_qos(int64_t res = -1, int64_t wgt = -1, int64_t lim = -1, int64_t bdw = -1);
   uint32_t get_cur_reqsrate();
   uint32_t get_cur_bytesrate();
   bool is_paused_by_qos();

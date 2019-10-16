@@ -205,10 +205,10 @@ namespace librbd {
     exclusive_lock::Policy *exclusive_lock_policy = nullptr;
     journal::Policy *journal_policy = nullptr;
     ZTracer::Endpoint trace_endpoint;
-    int client_qos_reservation;
-    int client_qos_weight;
-    int client_qos_limit;
-    int client_qos_bandwidth;
+    int64_t client_qos_reservation;
+    int64_t client_qos_weight;
+    int64_t client_qos_limit;
+    int64_t client_qos_bandwidth;
     bool qos_enabled = false;
 
     SafeTimer *m_report_timer = nullptr;
@@ -359,9 +359,9 @@ namespace librbd {
                        int64_t *pio_w = nullptr, int64_t *pbdw = nullptr,
                        int64_t *pbdw_r = nullptr, int64_t *pbdw_w = nullptr);
     void qos_set_enabled(bool enabled = true);
-    int qos_set_quota(int res = -1, int wgt = -1, int lim = -1, int bdw = -1);
+    int qos_set_quota(int64_t res = -1, int64_t wgt = -1, int64_t lim = -1, int64_t bdw = -1);
     int qos_set_default();
-    bool need_to_update(int *rsv, int *wgt, int *lmt, int *bdw);
+    bool need_to_update(int64_t *rsv, int64_t *wgt, int64_t *lmt, int64_t *bdw);
     bool is_paused_by_qos();
   };
 }

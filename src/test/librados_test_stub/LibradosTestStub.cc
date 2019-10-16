@@ -730,7 +730,7 @@ int IoCtx::application_metadata_list(const std::string& app_name,
   return -EOPNOTSUPP;
 }
 
-void IoCtx::set_qos_quota(int res, int wgt, int lim, int bdw) {
+void IoCtx::set_qos_quota(int64_t res, int64_t wgt, int64_t lim, int64_t bdw) {
   return;
 }
 

@@ -1238,7 +1238,7 @@ namespace librados
     void locator_set_key(const std::string& key);
     void set_namespace(const std::string& nspace);
 
-    void set_qos_quota(int res, int wgt, int lim, int bdw);
+    void set_qos_quota(int64_t res, int64_t wgt, int64_t lim, int64_t bdw);
     bool is_paused_by_qos();
     uint32_t get_qos_io_rate();
     uint32_t get_qos_byte_rate();

@@ -39,7 +39,11 @@ bool check_alldigital(string str)
   return true;
 }
 
-int get_qos_value(const po::variables_map &vm, int &qosr, int &qosw, int &qosl, int &qosb) {
+int get_qos_value(const po::variables_map &vm,
+                  int64_t &qosr,
+                  int64_t &qosw,
+                  int64_t &qosl,
+                  int64_t &qosb) {
   std::string val, miss;
   std::vector<std::string> vals;
   for (int i = 1; i <= 4; i++) {
@@ -61,10 +65,10 @@ int get_qos_value(const po::variables_map &vm, int &qosr, int &qosw, int &qosl, 
       vals.push_back(val);
   }
 
-  qosr = std::stoi(vals[0], nullptr);
-  qosw = std::stoi(vals[1], nullptr);
-  qosl = std::stoi(vals[2], nullptr);
-  qosb = std::stoi(vals[3], nullptr);
+  qosr = std::stol(vals[0], nullptr);
+  qosw = std::stol(vals[1], nullptr);
+  qosl = std::stol(vals[2], nullptr);
+  qosb = std::stol(vals[3], nullptr);
   if (qosr < -1 || qosw < -1 || qosl < -1 || qosb < -1) {
     std::cerr << "error: invalid qos spec" << std::endl;
     return -EINVAL;
@@ -100,7 +104,7 @@ int qos_list(librbd::RBD &rbd, librados::IoCtx& io_ctx, Formatter *f) {
   for (std::vector<std::string>::const_iterator i = names.begin();
        i != names.end(); ++i) {
     librbd::Image image;    
-    int qosr, qosw, qosl, qosb;
+    int64_t qosr, qosw, qosl, qosb;
     int fmeta_rwl = 0;
 
     r = rbd.open_read_only(io_ctx, image, i->c_str(), NULL);
@@ -223,7 +227,7 @@ int execute_set(const po::variables_map &vm) {
     return r;
   }
 
-  int rsv, wgt, lmt, bdw;
+  int64_t rsv, wgt, lmt, bdw;
   r = get_qos_value(vm, rsv, wgt, lmt, bdw);
   if (r < 0) {
     return r;
@@ -267,7 +271,7 @@ int execute_get(const po::variables_map &vm) {
     return r;
   }
 
-  int qosr, qosw, qosl, qosb;
+  int64_t qosr, qosw, qosl, qosb;
   r = image.qos_spec_get(&qosr, &qosw, &qosl, &qosb, nullptr);
   if (r < 0) {
     std::cerr << "failed to get qos spec of image : " << image_name

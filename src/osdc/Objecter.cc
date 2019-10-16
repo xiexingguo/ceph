@@ -230,7 +230,7 @@ void Objecter::update_crush_location()
   crush_location = cct->crush_location.get_location();
 }
 
-int Objecter::update_qos(int res, int wgt, int lim, int bdw) {
+int Objecter::update_qos(int64_t res, int64_t wgt, int64_t lim, int64_t bdw) {
   unique_lock wl(rwlock);
 
   double limit_factor = cct->_conf->get_val<double>(

@@ -2440,7 +2440,7 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
   }
 
   int qos_param_check(ImageCtx *ictx,
-                      int reservation, int weight, int limit, int bandwidth) {
+                      int64_t reservation, int64_t weight, int64_t limit, int64_t bandwidth) {
     if (reservation < -1 && weight < -1 && limit < -1
         && bandwidth < -1) {
       ldout(ictx->cct, 0) << "invalid qos, must be greater than -1." << dendl;
@@ -2464,7 +2464,7 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
   }
 
   int qos_spec_set(ImageCtx *ictx,
-                       int rsv, int wgt, int lmt, int bdw)
+                       int64_t rsv, int64_t wgt, int64_t lmt, int64_t bdw)
   {
     int r = qos_param_check(ictx, rsv, wgt, lmt, bdw);
     if (r < 0) {
@@ -2483,7 +2483,7 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
   }
 
   int qos_spec_get(ImageCtx *ictx,
-                       int *rsv, int *wgt, int *lmt, int *bdw,
+                       int64_t *rsv, int64_t *wgt, int64_t *lmt, int64_t *bdw,
                        int *mflag)
   {
     string srsv, swgt, slmt, sbdw;
@@ -2499,7 +2499,7 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
         *wgt = ictx->cct->_conf->rbd_client_qos_weight;
       }
     } else {
-      *wgt = std::stoi(swgt, nullptr);
+      *wgt = std::stol(swgt, nullptr);
       if (mflag) {
         *mflag |= QOS_FLAG_WGT;
       }
@@ -2511,7 +2511,7 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
           *rsv = ictx->cct->_conf->rbd_client_qos_reservation;
         }
       } else {
-        *rsv = std::stoi(srsv, nullptr);
+        *rsv = std::stol(srsv, nullptr);
         if (mflag) {
           *mflag |= QOS_FLAG_RSV;
         }
@@ -2528,7 +2528,7 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
           *lmt = ictx->cct->_conf->rbd_client_qos_limit;
         }
       } else {
-        *lmt = std::stoi(slmt, nullptr);
+        *lmt = std::stol(slmt, nullptr);
         if (mflag) {
           *mflag |= QOS_FLAG_LMT;
         }
@@ -2545,7 +2545,7 @@ int enable_mirroring(IoCtx &io_ctx, const std::string &image_id) {
           *bdw = ictx->cct->_conf->rbd_client_qos_bandwidth;
         }
       } else {
-        *bdw = std::stoi(sbdw, nullptr);
+        *bdw = std::stol(sbdw, nullptr);
         if (mflag) {
           *mflag |= QOS_FLAG_BDW;
         }

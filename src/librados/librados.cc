@@ -2172,7 +2172,7 @@ void librados::IoCtx::set_namespace(const string& nspace)
   io_ctx_impl->oloc.nspace = nspace;
 }
 
-void librados::IoCtx::set_qos_quota(int res, int wgt, int lim, int bdw)
+void librados::IoCtx::set_qos_quota(int64_t res, int64_t wgt, int64_t lim, int64_t bdw)
 {
   io_ctx_impl->objecter->update_qos(res, wgt, lim, bdw);
 }

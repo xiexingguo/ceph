@@ -1853,7 +1853,7 @@ namespace librbd {
     ictx->qos_set_enabled(enabled);
   }
 
-  int Image::qos_set_quota(int res, int wgt, int lim, int bdw) {
+  int Image::qos_set_quota(int64_t res, int64_t wgt, int64_t lim, int64_t bdw) {
     ImageCtx *ictx = (ImageCtx *)ctx;
     tracepoint(librbd, set_qos_quota_enter, ictx);
     int retval = ictx->qos_set_quota(res, wgt, lim, bdw);
@@ -1866,12 +1866,12 @@ namespace librbd {
     return ictx->qos_set_default();
   }
 
-  int Image::qos_spec_set(int rsv, int wgt, int lmt, int bdw) {
+  int Image::qos_spec_set(int64_t rsv, int64_t wgt, int64_t lmt, int64_t bdw) {
     ImageCtx *ictx = (ImageCtx *)ctx;
     return librbd::qos_spec_set(ictx, rsv, wgt, lmt, bdw);
   }
 
-  int Image::qos_spec_get(int *rsv, int *wgt, int *lmt, int *bdw,
+  int Image::qos_spec_get(int64_t *rsv, int64_t *wgt, int64_t *lmt, int64_t *bdw,
                               int *fmeta_rwlb) {
     ImageCtx *ictx = (ImageCtx *)ctx;
     return librbd::qos_spec_get(ictx, rsv, wgt, lmt, bdw, fmeta_rwlb);
@@ -4087,7 +4087,7 @@ extern "C" int rbd_cache_remove(rbd_image_t image)
 }
 
 extern "C" int rbd_qos_set(rbd_image_t image,
-                              int reservation, int weight, int limit, int bandwidth)
+                              int64_t reservation, int64_t weight, int64_t limit, int64_t bandwidth)
 {
   librbd::ImageCtx *ictx = (librbd::ImageCtx *)image;
   int r = librbd::qos_spec_set(ictx, reservation, weight, limit, bandwidth);
@@ -4099,7 +4099,7 @@ extern "C" int rbd_qos_set(rbd_image_t image,
 }
 
 extern "C" int rbd_qos_get(rbd_image_t image,
-                              int *reservation, int *weight, int *limit, int *bandwidth,
+                              int64_t *reservation, int64_t *weight, int64_t *limit, int64_t *bandwidth,
                               int *metaflag)
 {
   librbd::ImageCtx *ictx = (librbd::ImageCtx *)image;

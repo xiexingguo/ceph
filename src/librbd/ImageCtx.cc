@@ -1310,7 +1310,7 @@ struct C_InvalidateCache : public Context {
     qos_enabled = enabled;
   }
 
-  int ImageCtx::qos_set_quota(int res, int wgt, int lim, int bdw) {
+  int ImageCtx::qos_set_quota(int64_t res, int64_t wgt, int64_t lim, int64_t bdw) {
     assert(!(res == 0 && wgt == 0));
 
     if (res < -1 || wgt < -1 || lim < -1 || bdw < -1) {
@@ -1339,7 +1339,7 @@ struct C_InvalidateCache : public Context {
     return qos_set_quota(0, 139, 0, 0);
   }
 
-  bool ImageCtx::need_to_update(int *rsv, int *wgt, int *lmt, int *bdw) {
+  bool ImageCtx::need_to_update(int64_t *rsv, int64_t *wgt, int64_t *lmt, int64_t *bdw) {
     assert(rsv != nullptr && wgt != nullptr &&
            lmt != nullptr && bdw != nullptr);
 

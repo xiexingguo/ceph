@@ -828,9 +828,9 @@ CEPH_RBD_API int64_t rbd_get_byte_rate(rbd_image_t image);
 CEPH_RBD_API int rbd_cache_disable(rbd_image_t image);
 CEPH_RBD_API int rbd_cache_remove(rbd_image_t image);
 CEPH_RBD_API int rbd_qos_set(rbd_image_t image,
-                                int reservation, int weight, int limit, int bandwidth);
+                                int64_t reservation, int64_t weight, int64_t limit, int64_t bandwidth);
 CEPH_RBD_API int rbd_qos_get(rbd_image_t image,
-                                int *reservation, int *weight, int *limit, int *bandwidth,
+                                int64_t *reservation, int64_t *weight, int64_t *limit, int64_t *bandwidth,
                                 int *metaflag);
 CEPH_RBD_API int rbd_qos_del(rbd_image_t image, int flag);
 

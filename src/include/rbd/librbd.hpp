@@ -431,10 +431,10 @@ public:
   int update_watch(UpdateWatchCtx *ctx, uint64_t *handle);
   int update_unwatch(uint64_t handle);
   void qos_set_enabled(bool enabled = true);
-  int qos_set_quota(int res = -1, int wgt = -1, int lim = -1, int bdw = -1);
+  int qos_set_quota(int64_t res = -1, int64_t wgt = -1, int64_t lim = -1, int64_t bdw = -1);
   int qos_set_default();
-  int qos_spec_set(int rsv, int wgt, int lmt, int bdw);
-  int qos_spec_get(int *rsv, int *wgt, int *lmt, int *bdw, int *fmeta_rwl);
+  int qos_spec_set(int64_t rsv, int64_t wgt, int64_t lmt, int64_t bdw);
+  int qos_spec_get(int64_t *rsv, int64_t *wgt, int64_t *lmt, int64_t *bdw, int *fmeta_rwl);
   int qos_spec_del();
 
 private:

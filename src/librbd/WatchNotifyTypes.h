@@ -292,13 +292,13 @@ struct QosUpdatePayload {
   static const bool CHECK_FOR_REFRESH = false;
 
   QosUpdatePayload() {}
-  QosUpdatePayload(int rsv, int wgt, int lmt, int bdw)
+  QosUpdatePayload(int64_t rsv, int64_t wgt, int64_t lmt, int64_t bdw)
     : reservation(rsv), weight(wgt), limit(lmt), bandwidth(bdw) {}
 
-  int reservation;
-  int weight;
-  int limit;
-  int bandwidth;
+  int64_t reservation;
+  int64_t weight;
+  int64_t limit;
+  int64_t bandwidth;
 
   void encode(bufferlist &bl) const;
   void decode(__u8 version, bufferlist::iterator &iter);

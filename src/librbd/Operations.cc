@@ -603,7 +603,7 @@ void Operations<I>::execute_rename(const std::string &dest_name,
 }
 
 template <typename I>
-int Operations<I>::qos_update(int rsv, int wgt, int lmt, int bdw) {
+int Operations<I>::qos_update(int64_t rsv, int64_t wgt, int64_t lmt, int64_t bdw) {
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 5) << this << " " << __func__ << ": reservation=" << rsv
                 << ", weight=" << wgt << ", limit=" << lmt
@@ -621,7 +621,7 @@ int Operations<I>::qos_update(int rsv, int wgt, int lmt, int bdw) {
 }
 
 template <typename I>
-void Operations<I>::execute_qos_update(int rsv, int wgt, int lmt, int bdw,
+void Operations<I>::execute_qos_update(int64_t rsv, int64_t wgt, int64_t lmt, int64_t bdw,
                                        Context *on_finish) {
   assert(m_image_ctx.owner_lock.is_locked());
   assert(m_image_ctx.exclusive_lock == nullptr ||
