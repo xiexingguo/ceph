@@ -2,6 +2,9 @@ etc/init.d/ceph
 usr/bin/ceph-debugpack
 usr/bin/ceph-detect-init
 usr/bin/ceph-run
+usr/bin/cephfs-data-scan
+usr/bin/cephfs-journal-tool
+usr/bin/cephfs-table-tool
 usr/bin/crushtool
 usr/bin/monmaptool
 usr/bin/osdmaptool
