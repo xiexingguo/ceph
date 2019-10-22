@@ -959,6 +959,7 @@ rm -rf %{buildroot}
 %{_bindir}/cephfs-data-scan
 %{_bindir}/cephfs-journal-tool
 %{_bindir}/cephfs-table-tool
+%{_bindir}/radosgw-admin
 %{_bindir}/ceph-detect-init
 %{_libexecdir}/systemd/system-preset/50-ceph.preset
 %{_sbindir}/ceph-create-keys
@@ -1007,6 +1008,8 @@ rm -rf %{buildroot}
 %{_mandir}/man8/monmaptool.8*
 %{_mandir}/man8/ceph-kvstore-tool.8*
 %{_mandir}/man8/ceph-dencoder.8*
+%{_mandir}/man8/radosgw-admin.8*
+%config %{_sysconfdir}/bash_completion.d/radosgw-admin
 #set up placeholder directories
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/tmp
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/bootstrap-osd
@@ -1071,7 +1074,6 @@ fi
 %{_bindir}/ceph-syn
 %{_bindir}/ceph-crush-location
 %{_bindir}/rados
-%{_bindir}/radosgw-admin
 %{_bindir}/rbd
 %{_bindir}/rbd-replay
 %{_bindir}/rbd-replay-many
@@ -1094,7 +1096,6 @@ fi
 %{_mandir}/man8/ceph.8*
 %{_mandir}/man8/mount.ceph.8*
 %{_mandir}/man8/rados.8*
-%{_mandir}/man8/radosgw-admin.8*
 %{_mandir}/man8/rbd.8*
 %{_mandir}/man8/rbdmap.8*
 %{_mandir}/man8/rbd-replay.8*
@@ -1108,7 +1109,6 @@ fi
 %config %{_sysconfdir}/bash_completion.d/ceph
 %config %{_sysconfdir}/bash_completion.d/rados
 %config %{_sysconfdir}/bash_completion.d/rbd
-%config %{_sysconfdir}/bash_completion.d/radosgw-admin
 %config(noreplace) %{_sysconfdir}/ceph/rbdmap
 %{_unitdir}/rbdmap.service
 %{python_sitelib}/ceph_argparse.py*
