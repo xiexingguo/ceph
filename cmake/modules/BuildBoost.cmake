@@ -95,6 +95,8 @@ function(do_build_boost version)
         "${boost_url} http://downloads.sourceforge.net/project/boost/boost/${boost_version}/boost_${boost_version_underscore}.tar.bz2")
       set(boost_url
         "${boost_url} https://download.ceph.com/qa/boost_${boost_version_underscore}.tar.bz2")
+      set(boost_url
+        "${boost_url} http://192.168.5.4/qa/boost_${boost_version_underscore}.tar.bz2")
     endif()
     set(source_dir
       URL ${boost_url}
