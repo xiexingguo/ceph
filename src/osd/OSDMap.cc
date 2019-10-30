@@ -1638,12 +1638,12 @@ bool OSDMap::check_pg_upmaps(
     vector<int> raw, up;
     pg_to_raw_upmap(pg, &raw, &up);
     auto crush_rule = get_pg_pool_crush_rule(pg);
-    auto r = crush->verify_upmap(cct,
-                                 crush_rule,
-                                 get_pg_pool_size(pg),
-                                 up);
+    auto r = crush->verify_up(cct,
+                              crush_rule,
+                              get_pg_pool_size(pg),
+                              up);
     if (r < 0) {
-      ldout(cct, 0) << __func__ << " verify_upmap of pg " << pg
+      ldout(cct, 0) << __func__ << " verify_up of pg " << pg
                     << " returning " << r
                     << dendl;
       to_cancel->push_back(pg);

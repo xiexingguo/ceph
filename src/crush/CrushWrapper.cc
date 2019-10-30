@@ -880,10 +880,10 @@ void CrushWrapper::get_children_of_type(int id,
   }
 }
 
-int CrushWrapper::verify_upmap(CephContext *cct,
-                               int rule_id,
-                               int pool_size,
-                               const vector<int>& up)
+int CrushWrapper::verify_up(CephContext *cct,
+                            int rule_id,
+                            int pool_size,
+                            const vector<int>& up)
 {
   auto rule = get_rule(rule_id);
   if (IS_ERR(rule) || !rule) {

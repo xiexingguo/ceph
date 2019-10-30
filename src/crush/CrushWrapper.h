@@ -735,13 +735,13 @@ public:
 
 
   /**
-   * verify upmapping results.
+   * verify crush mapping results.
    * return 0 on success or a negative errno on error.
    */
-  int verify_upmap(CephContext *cct,
-                   int rule_id,
-                   int pool_size,
-                   const vector<int>& up);
+  int verify_up(CephContext *cct,
+                int rule_id,
+                int pool_size,
+                const vector<int>& up);
 
   /**
     * enumerate leaves(devices) of given node
