@@ -4939,7 +4939,7 @@ void PG::repair_object(
     assert(waiting_for_unreadable_object.empty());
 
     pg_log.missing_add(soid, oi.version, eversion_t());
-
+    pg_log.reset_complete_to(&info);
     pg_log.set_last_requested(0);
     dout(10) << __func__ << ": primary = " << primary << dendl;
   }

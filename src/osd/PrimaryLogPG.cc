@@ -11920,6 +11920,7 @@ bool PrimaryLogPG::primary_error(
   const hobject_t& soid, eversion_t v)
 {
   pg_log.missing_add(soid, v, eversion_t());
+  pg_log.reset_complete_to(&info);
   pg_log.set_last_requested(0);
   missing_loc.remove_location(soid, pg_whoami);
   bool uhoh = true;
