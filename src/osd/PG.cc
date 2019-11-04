@@ -1559,7 +1559,7 @@ void PG::choose_async_recovery_ec(const map<pg_shard_t, pg_info_t> &all_info,
                                   vector<int> *want,
                                   set<pg_shard_t> *async_recovery)
 {
-  set<pair<int, pg_shard_t> > candidates_by_cost;
+  set<pair<uint64_t, pg_shard_t> > candidates_by_cost;
   for (uint8_t i = 0; i < want->size(); ++i) {
     if ((*want)[i] == CRUSH_ITEM_NONE)
       continue;
@@ -1584,7 +1584,7 @@ void PG::choose_async_recovery_ec(const map<pg_shard_t, pg_info_t> &all_info,
     // past the authoritative last_update the same as those equal to it.
     version_t auth_version = auth_info.last_update.version;
     version_t candidate_version = shard_info.last_update.version;
-    auto approx_missing_objects =
+    uint64_t approx_missing_objects =
       shard_info.stats.stats.sum.num_objects_missing;
     if (auth_version > candidate_version) {
       approx_missing_objects += auth_version - candidate_version;
@@ -1597,10 +1597,41 @@ void PG::choose_async_recovery_ec(const map<pg_shard_t, pg_info_t> &all_info,
 
   dout(20) << __func__ << " candidates by cost are: " << candidates_by_cost
            << dendl;
-
+  set<pair<uint64_t, pg_shard_t>> final_candidates_by_cost;
+  if (cct->_conf->get_val<bool>("osd_choose_acting_by_failure_domain")) {
+    // for the sake of data safety, we must choose want (next acting set)
+    // more carefully, e.g., by avoid selecting two or more potential osds
+    // that might come from the same failure domain.
+    auto ideal_want(*want);
+    // remove any potential async-recovery peers first
+    for (auto& c : candidates_by_cost)
+      ideal_want.erase(
+        std::find(ideal_want.begin(), ideal_want.end(), c.second.osd));
+    auto osdmap = get_osdmap();
+    auto rule = osdmap->get_pool_crush_rule(pool.id);
+    auto size = pool.info.size;
+    if (osdmap->crush->verify_up(cct, rule, size, ideal_want) == 0) {
+      for (auto rit = candidates_by_cost.rbegin();
+           rit != candidates_by_cost.rend(); ++rit) {
+        ideal_want.push_back(rit->second.osd);
+        if (osdmap->crush->verify_up(cct, rule, size, ideal_want) < 0) {
+          // collided
+          // force this one to go async recovery (if possible)
+          ideal_want.pop_back();
+          final_candidates_by_cost.insert({-1, rit->second});
+        } else {
+          final_candidates_by_cost.insert({rit->first, rit->second});
+        }
+      }
+    }
+  }
+  dout(20) << __func__ << " final candidates by cost are: "
+             << final_candidates_by_cost << dendl;
+  if (final_candidates_by_cost.empty())
+    final_candidates_by_cost = candidates_by_cost;
   // take out as many osds as we can for async recovery, in order of cost
-  for (auto rit = candidates_by_cost.rbegin();
-       rit != candidates_by_cost.rend(); ++rit) {
+  for (auto rit = final_candidates_by_cost.rbegin();
+       rit != final_candidates_by_cost.rend(); ++rit) {
     pg_shard_t cur_shard = rit->second;
     vector<int> candidate_want(*want);
     candidate_want[cur_shard.shard.id] = CRUSH_ITEM_NONE;
@@ -1618,7 +1649,7 @@ void PG::choose_async_recovery_replicated(const map<pg_shard_t, pg_info_t> &all_
                                           vector<int> *want,
                                           set<pg_shard_t> *async_recovery)
 {
-  set<pair<int, pg_shard_t> > candidates_by_cost;
+  set<pair<uint64_t, pg_shard_t> > candidates_by_cost;
   for (auto osd_num : *want) {
     pg_shard_t shard_i(osd_num, shard_id_t::NO_SHARD);
     // do not include strays
@@ -1650,9 +1681,41 @@ void PG::choose_async_recovery_replicated(const map<pg_shard_t, pg_info_t> &all_
 
   dout(20) << __func__ << " candidates by cost are: " << candidates_by_cost
            << dendl;
+  set<pair<uint64_t, pg_shard_t>> final_candidates_by_cost;
+  if (cct->_conf->get_val<bool>("osd_choose_acting_by_failure_domain")) {
+    // for the sake of data safety, we must choose want (next acting set)
+    // more carefully, e.g., by avoid selecting two or more potential osds
+    // that might come from the same failure domain.
+    auto ideal_want(*want);
+    // remove any potential async-recovery peers first
+    for (auto& c : candidates_by_cost)
+      ideal_want.erase(
+        std::find(ideal_want.begin(), ideal_want.end(), c.second.osd));
+    auto osdmap = get_osdmap();
+    auto rule = osdmap->get_pool_crush_rule(pool.id);
+    auto size = pool.info.size;
+    if (osdmap->crush->verify_up(cct, rule, size, ideal_want) == 0) {
+      for (auto rit = candidates_by_cost.rbegin();
+           rit != candidates_by_cost.rend(); ++rit) {
+        ideal_want.push_back(rit->second.osd);
+        if (osdmap->crush->verify_up(cct, rule, size, ideal_want) < 0) {
+          // collided
+          // force this one to go async recovery (if possible)
+          ideal_want.pop_back();
+          final_candidates_by_cost.insert({-1, rit->second});
+        } else {
+          final_candidates_by_cost.insert({rit->first, rit->second});
+        }
+      }
+    }
+  }
+  if (final_candidates_by_cost.empty())
+    final_candidates_by_cost = candidates_by_cost;
+  dout(20) << __func__ << " final candidates by cost are: "
+           << final_candidates_by_cost << dendl;
   // take out as many osds as we can for async recovery, in order of cost
-  for (auto rit = candidates_by_cost.rbegin();
-       rit != candidates_by_cost.rend(); ++rit) {
+  for (auto rit = final_candidates_by_cost.rbegin();
+       rit != final_candidates_by_cost.rend(); ++rit) {
     if (want->size() <= pool.info.min_size) {
       break;
     }
