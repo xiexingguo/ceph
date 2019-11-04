@@ -1848,7 +1848,9 @@ bool PG::choose_acting(pg_shard_t &auth_log_shard_id,
   }
 
   set<pg_shard_t> want_async_recovery;
-  if (cct->_conf->get_val<bool>("osd_async_recovery")) {
+  if (cct->_conf->get_val<bool>("osd_async_recovery") &&
+      pool.info.min_size >=
+        cct->_conf->get_val<uint64_t>("osd_min_min_size_for_async_recovery")) {
     if (pool.info.is_erasure()) {
       choose_async_recovery_ec(all_info, auth_log_shard->second, &want, &want_async_recovery);
     } else {

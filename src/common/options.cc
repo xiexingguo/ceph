@@ -2768,6 +2768,10 @@ std::vector<Option> get_global_options() {
     .set_default(false)
     .set_description("enable asynchronous recovery"),
 
+    Option("osd_min_min_size_for_async_recovery", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(1)
+    .set_description("minimal pool min_size to enable asynchronous recovery"),
+
     Option("osd_force_auth_primary_missing_objects", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(-1)
     .set_description("Approximate missing objects above which to force auth_log_shard to be primary temporarily"),
