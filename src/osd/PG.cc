@@ -1334,6 +1334,7 @@ void PG::calc_ec_acting(
  * bring other up nodes up to date.
  */
 void PG::calc_replicated_acting(
+  CephContext *cct,
   map<pg_shard_t, pg_info_t>::const_iterator auth_log_shard,
   uint64_t force_auth_primary_missing_objects,
   unsigned size,
@@ -1429,8 +1430,9 @@ void PG::calc_replicated_acting(
     return;
   }
 
-  std::vector<std::pair<eversion_t, int>> candidate_by_last_update;
-  candidate_by_last_update.reserve(acting.size());
+  std::vector<std::pair<eversion_t, int>> acting_candidates_by_last_update,
+    stray_candidates_by_last_update;
+  acting_candidates_by_last_update.reserve(acting.size());
   // This no longer has backfill OSDs, but they are covered above.
   for (auto i : acting) {
     pg_shard_t acting_cand(i, shard_id_t::NO_SHARD);
@@ -1447,34 +1449,16 @@ void PG::calc_replicated_acting(
       ss << " shard " << acting_cand << " (acting) REJECTED "
 	 << cur_info << std::endl;
     } else {
-      candidate_by_last_update.push_back(make_pair(cur_info.last_update, i));
-    }
-  }
-
-  auto sort_by_eversion =[](const std::pair<eversion_t, int> &lhs,
-                            const std::pair<eversion_t, int> &rhs) {
-    return lhs.first > rhs.first;
-  };
-  // sort by last_update, in descending order.
-  std::sort(candidate_by_last_update.begin(),
-            candidate_by_last_update.end(), sort_by_eversion);
-  for (auto &p: candidate_by_last_update) {
-    ceph_assert(want->size() < size);
-    want->push_back(p.second);
-    pg_shard_t s = pg_shard_t(p.second, shard_id_t::NO_SHARD);
-    acting_backfill->insert(s);
-    ss << " shard " << s << " (acting) accepted "
-       << all_info.find(s)->second << std::endl;
-    if (want->size() >= size) {
-      return;
+      ss << " will try (acting) shard " << acting_cand
+         << " info " << cur_info << std::endl;
+      acting_candidates_by_last_update.emplace_back(cur_info.last_update, i);
     }
   }
 
   if (restrict_to_up_acting) {
-    return;
+    goto pick;
   }
-  candidate_by_last_update.clear();
-  candidate_by_last_update.reserve(all_info.size()); // overestimate but fine
+
   // continue to search stray to find more suitable peers
   for (auto &i : all_info) {
     // skip up osds we already considered above
@@ -1493,26 +1477,65 @@ void PG::calc_replicated_acting(
       ss << " shard " << i.first << " (stray) REJECTED " << i.second
          << std::endl;
     } else {
-      candidate_by_last_update.push_back(
+      ss << " will try (stray) shard " << i.first
+         << " info " << i.second << std::endl;
+      stray_candidates_by_last_update.push_back(
         make_pair(i.second.last_update, i.first.osd));
     }
   }
 
-  if (candidate_by_last_update.empty()) {
-    // save us some effort
-    return;
-  }
+pick:
 
   // sort by last_update, in descending order.
-  std::sort(candidate_by_last_update.begin(),
-            candidate_by_last_update.end(), sort_by_eversion);
+  auto sort_by_eversion =[](const std::pair<eversion_t, int> &lhs,
+                            const std::pair<eversion_t, int> &rhs) {
+    return lhs.first > rhs.first;
+  };
+  std::sort(acting_candidates_by_last_update.begin(),
+            acting_candidates_by_last_update.end(), sort_by_eversion);
+  std::sort(stray_candidates_by_last_update.begin(),
+            stray_candidates_by_last_update.end(), sort_by_eversion);
+  std::vector<int> final_candidates;
+  if (cct->_conf->get_val<bool>("osd_choose_acting_by_failure_domain")) {
+    auto rule = osdmap->get_pool_crush_rule(primary->second.pgid.pool());
+    auto ideal_want(*want);
+    std::vector<int> noncolliding;
+    std::vector<int> colliding;
+    if (osdmap->crush->verify_up(cct, rule, size, ideal_want) == 0) {
+      for (auto ls: { acting_candidates_by_last_update,
+                      stray_candidates_by_last_update }) {
+        for (auto& c : ls) {
+          ideal_want.push_back(c.second);
+          if (osdmap->crush->verify_up(cct, rule, size, ideal_want) == 0) {
+            noncolliding.push_back(c.second);
+          } else {
+            ideal_want.pop_back();
+            colliding.push_back(c.second);
+          }
+        }
+      }
+      final_candidates = noncolliding;
+      final_candidates.insert(final_candidates.end(),
+                              colliding.begin(), colliding.end());
+    }
+  }
+  if (final_candidates.empty()) {
+    // note: we need to preserve the order of selecting
+    // for backward compatibility
+    for (auto ls: { acting_candidates_by_last_update,
+                     stray_candidates_by_last_update }) {
+      for (auto& c : ls) {
+        final_candidates.push_back(c.second);
+      }
+    }
+  }
 
-  for (auto &p: candidate_by_last_update) {
+  for (auto o: final_candidates) {
     ceph_assert(want->size() < size);
-    want->push_back(p.second);
-    pg_shard_t s = pg_shard_t(p.second, shard_id_t::NO_SHARD);
+    want->push_back(o);
+    pg_shard_t s = pg_shard_t(o, shard_id_t::NO_SHARD);
     acting_backfill->insert(s);
-    ss << " shard " << s << " (stray) accepted "
+    ss << " shard " << s << " accepted "
        << all_info.find(s)->second << std::endl;
     if (want->size() >= size) {
       return;
@@ -1787,6 +1810,7 @@ bool PG::choose_acting(pg_shard_t &auth_log_shard_id,
   stringstream ss;
   if (!pool.info.ec_pool())
     calc_replicated_acting(
+      cct,
       auth_log_shard,
       cct->_conf->get_val<uint64_t>(
         "osd_force_auth_primary_missing_objects"),
@@ -1831,13 +1855,43 @@ bool PG::choose_acting(pg_shard_t &auth_log_shard_id,
       choose_async_recovery_replicated(all_info, auth_log_shard->second, &want, &want_async_recovery);
     }
   }
-  while (want.size() > pool.info.size) {
-    // async recovery should have taken out as many osds as it can.
-    // if not, then always evict the last peer
-    // (will get synchronously recovered later)
-    dout(10) << __func__ << " evicting osd." << want.back()
-             << " from oversized want " << want << dendl;
-    want.pop_back();
+  if (!cct->_conf->get_val<bool>("osd_choose_acting_by_failure_domain")) {
+    while (want.size() > pool.info.size) {
+      // async recovery should have taken out as many osds as it can.
+      // if not, then always evict the last peer
+      // (will get synchronously recovered later)
+      dout(10) << __func__ << " evicting osd." << want.back()
+               << " from oversized want " << want << dendl;
+      want.pop_back();
+    }
+  } else if (want.size() > pool.info.size) {
+    vector<int> ideal_want;
+    deque<int> colliding;
+    ideal_want.push_back(want.front()); // include primary
+    auto osdmap = get_osdmap();
+    auto rule = osdmap->get_pool_crush_rule(pool.id);
+    auto size = pool.info.size;
+    auto it = want.begin();
+    it++; // skip primary
+    while (it != want.end() && ideal_want.size() < pool.info.size) {
+      ideal_want.push_back(*it);
+      if (osdmap->crush->verify_up(cct, rule, size, ideal_want) < 0) {
+        ideal_want.pop_back();
+        colliding.push_back(*it);
+      }
+      it++;
+    }
+    dout(10) << __func__ << " ideal_want " << ideal_want
+             << " colliding " << colliding << dendl;
+    while (ideal_want.size() < pool.info.size) {
+      ceph_assert(!colliding.empty());
+      ideal_want.push_back(colliding.front());
+      dout(10) << __func__ << " including colliding peer osd."
+               << colliding.front() << dendl;
+      colliding.pop_front();
+    }
+    ceph_assert(ideal_want.size() == pool.info.size);
+    want.swap(ideal_want);
   }
   if (want != acting) {
     dout(10) << "choose_acting want " << want << " != acting " << acting

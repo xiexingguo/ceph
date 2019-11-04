@@ -1238,6 +1238,7 @@ public:
     set<pg_shard_t> *acting_backfill,
     ostream &ss);
   static void calc_replicated_acting(
+    CephContext *cct,
     map<pg_shard_t, pg_info_t>::const_iterator auth_log_shard,
     uint64_t force_auth_primary_missing_objects,
     unsigned size,
