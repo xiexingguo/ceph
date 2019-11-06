@@ -915,8 +915,8 @@ COMMAND("osd pg-upmap " \
 	"set pg_upmap mapping <pgid>:[<id> [<id>...]] (developers only)", \
         "osd", "rw")
 COMMAND("osd rm-pg-upmap " \
-	"name=pgid,type=CephPgid",					\
-	"clear pg_upmap mapping for <pgid> (developers only)", \
+	"name=who,type=CephString",					\
+	"clear pg_upmap mapping for specific pg, pool or all", \
         "osd", "rw")
 COMMAND("osd pg-upmap-items " \
 	"name=pgid,type=CephPgid " \
@@ -924,8 +924,8 @@ COMMAND("osd pg-upmap-items " \
 	"set pg_upmap_items mapping <pgid>:{<id> to <id>, [...]} (developers only)", \
         "osd", "rw")
 COMMAND("osd rm-pg-upmap-items " \
-	"name=pgid,type=CephPgid",		  \
-	"clear pg_upmap_items mapping for <pgid> (developers only)", \
+	"name=who,type=CephString",		  \
+	"clear pg_upmap_items mapping for specific pg, pool or all", \
         "osd", "rw")
 COMMAND("osd primary-temp " \
 	"name=pgid,type=CephPgid " \

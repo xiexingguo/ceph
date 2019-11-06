@@ -11654,16 +11654,55 @@ bool OSDMonitor::prepare_command_impl(MonOpRequestRef op,
       goto wait;
     if (err < 0)
       goto reply;
-    string pgidstr;
-    if (!cmd_getval(cct, cmdmap, "pgid", pgidstr)) {
+    string who;
+    if ((prefix == "osd pg-upmap" || prefix == "osd pg-upmap-items") &&
+         !cmd_getval(cct, cmdmap, "pgid", who)) {
       ss << "unable to parse 'pgid' value '"
          << cmd_vartype_stringify(cmdmap.at("pgid")) << "'";
       err = -EINVAL;
       goto reply;
     }
+    if ((prefix == "osd rm-pg-upmap" || prefix == "osd rm-pg-upmap-items") &&
+        !cmd_getval(cct, cmdmap, "who", who)) {
+      ss << "unable to parse 'who' value '"
+         << cmd_vartype_stringify(cmdmap.at("who")) << "'";
+      err = -EINVAL;
+      goto reply;
+    }
     pg_t pgid;
-    if (!pgid.parse(pgidstr.c_str())) {
-      ss << "invalid pgid '" << pgidstr << "'";
+    if ((prefix == "osd rm-pg-upmap" || prefix == "osd rm-pg-upmap-items") &&
+        !pgid.parse(who.c_str())) {
+      bool all = who == "*" || who == "all" || who == "any";
+      auto pool = osdmap.lookup_pg_pool_name(who);
+      if (!all && pool < 0) {
+        ss << "invalid who string '" << who << "'";
+        err = -EINVAL;
+        goto reply;
+      }
+      if (prefix == "osd rm-pg-upmap") {
+        for (auto& p : osdmap.pg_upmap) {
+          if (p.first.pool() == pool || all)
+            pending_inc.old_pg_upmap.insert(p.first);
+        }
+        for (auto& p : pending_inc.new_pg_upmap) {
+          if (p.first.pool() == pool || all)
+            pending_inc.old_pg_upmap.insert(p.first);
+        }
+      }
+      if (prefix == "osd rm-pg-upmap-items") {
+        for (auto& p : osdmap.pg_upmap_items) {
+          if (p.first.pool() == pool || all)
+            pending_inc.old_pg_upmap_items.insert(p.first);
+        }
+        for (auto& p : pending_inc.new_pg_upmap_items) {
+          if (p.first.pool() == pool || all)
+            pending_inc.old_pg_upmap_items.insert(p.first);
+        }
+      }
+      goto update;
+    }
+    if (!pgid.parse(who.c_str())) {
+      ss << "invalid pgid '" << who << "'";
       err = -EINVAL;
       goto reply;
     }
