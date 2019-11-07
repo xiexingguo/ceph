@@ -1297,7 +1297,21 @@ struct C_InvalidateCache : public Context {
         "rbd_status_update_delay", false)(
         "rbd_status_update_interval", false)(
         "rbd_status_update_skip_delta_ratio", false)(
-        "rbd_status_update_skip_max_count", false);
+        "rbd_status_update_skip_max_count", false)
+        ("rbd_qos_schedule_tick_min", false)
+        ("rbd_qos_iops_limit", false)
+        ("rbd_qos_iops_burst", false)
+        ("rbd_qos_bps_limit", false)
+        ("rbd_qos_bps_burst", false)
+        ("rbd_qos_read_iops_limit", false)
+        ("rbd_qos_read_iops_burst", false)
+        ("rbd_qos_write_iops_limit", false)
+        ("rbd_qos_write_iops_burst", false)
+        ("rbd_qos_read_bps_limit", false)
+        ("rbd_qos_read_bps_burst", false)
+        ("rbd_qos_write_bps_limit", false)
+        ("rbd_qos_write_bps_burst", false)
+        ;
 
     md_config_t local_config_t;
     std::map<std::string, bufferlist> res;
@@ -1360,6 +1374,20 @@ struct C_InvalidateCache : public Context {
     ASSIGN_OPTION(skip_partial_discard, bool);
     ASSIGN_OPTION(blkin_trace_all, bool);
 
+    ASSIGN_OPTION(qos_schedule_tick_min, uint64_t);
+    ASSIGN_OPTION(qos_iops_limit, uint64_t);
+    ASSIGN_OPTION(qos_iops_burst, uint64_t);
+    ASSIGN_OPTION(qos_bps_limit, uint64_t);
+    ASSIGN_OPTION(qos_bps_burst, uint64_t);
+    ASSIGN_OPTION(qos_read_iops_limit, uint64_t);
+    ASSIGN_OPTION(qos_read_iops_burst, uint64_t);
+    ASSIGN_OPTION(qos_write_iops_limit, uint64_t);
+    ASSIGN_OPTION(qos_write_iops_burst, uint64_t);
+    ASSIGN_OPTION(qos_read_bps_limit, uint64_t);
+    ASSIGN_OPTION(qos_read_bps_burst, uint64_t);
+    ASSIGN_OPTION(qos_write_bps_limit, uint64_t);
+    ASSIGN_OPTION(qos_write_bps_burst, uint64_t);
+
     if (thread_safe) {
       ASSIGN_OPTION(journal_pool, std::string);
     }
@@ -1377,6 +1405,33 @@ struct C_InvalidateCache : public Context {
     ASSIGN_OPTION(status_update_skip_delta_ratio, double);
     ASSIGN_OPTION(status_update_skip_max_count, int64_t);
 
+    io_work_queue->apply_qos_schedule_tick_min(
+      qos_schedule_tick_min);
+
+    io_work_queue->apply_qos_limit(
+      RBD_QOS_IOPS_THROTTLE,
+      qos_iops_limit,
+      qos_iops_burst);
+    io_work_queue->apply_qos_limit(
+      RBD_QOS_BPS_THROTTLE,
+      qos_bps_limit,
+      qos_bps_burst);
+    io_work_queue->apply_qos_limit(
+      RBD_QOS_READ_IOPS_THROTTLE,
+      qos_read_iops_limit,
+      qos_read_iops_burst);
+    io_work_queue->apply_qos_limit(
+      RBD_QOS_WRITE_IOPS_THROTTLE,
+      qos_write_iops_limit,
+      qos_write_iops_burst);
+    io_work_queue->apply_qos_limit(
+      RBD_QOS_READ_BPS_THROTTLE,
+      qos_read_bps_limit,
+      qos_read_bps_burst);
+    io_work_queue->apply_qos_limit(
+      RBD_QOS_WRITE_BPS_THROTTLE,
+      qos_write_bps_limit,
+      qos_write_bps_burst);
   }
 
   ExclusiveLock<ImageCtx> *ImageCtx::create_exclusive_lock() {

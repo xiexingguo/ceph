@@ -91,6 +91,28 @@ public:
   void send();
   void fail(int r);
 
+  virtual bool tokens_requested(uint64_t flag, uint64_t *tokens) {
+    if (flag & RBD_QOS_READ_MASK) {
+      *tokens = 0;
+      return false;
+    }
+
+    *tokens = (flag & RBD_QOS_BPS_MASK) ? this->extents_length() : 1;
+    return true;
+  }
+
+  bool was_throttled(uint64_t flag) {
+    return m_throttled_flag & flag;
+  }
+
+  void set_throttled(uint64_t flag) {
+    m_throttled_flag |= flag;
+  }
+
+  bool were_all_throttled() {
+    return (m_throttled_flag & RBD_QOS_MASK) == RBD_QOS_MASK;
+  }
+
   void set_bypass_image_cache() {
     m_bypass_image_cache = true;
   }
@@ -124,6 +146,18 @@ protected:
 
   virtual aio_type_t get_aio_type() const = 0;
   virtual const char *get_request_type() const = 0;
+
+  std::atomic<uint64_t> m_throttled_flag = { 0 };
+
+  uint64_t extents_length() {
+    uint64_t length = 0;
+    auto &extents = this->m_image_extents;
+
+    for (auto &extent : extents) {
+      length += extent.second;
+    }
+    return length;
+  }
 };
 
 template <typename ImageCtxT = ImageCtx>
@@ -134,6 +168,16 @@ public:
   ImageReadRequest(ImageCtxT &image_ctx, AioCompletion *aio_comp,
                    Extents &&image_extents, ReadResult &&read_result,
                    int op_flags, const ZTracer::Trace &parent_trace);
+
+  bool tokens_requested(uint64_t flag, uint64_t *tokens) override {
+    if (flag & RBD_QOS_WRITE_MASK) {
+      *tokens = 0;
+      return false;
+    }
+
+    *tokens = (flag & RBD_QOS_BPS_MASK) ? this->extents_length() : 1;
+    return true;
+  }
 
 protected:
   int clip_request() override;
@@ -302,6 +346,11 @@ public:
   }
 
   bool is_write_op() const override {
+    return true;
+  }
+
+  bool tokens_requested(uint64_t flag, uint64_t *tokens) override {
+    *tokens = 0;
     return true;
   }
 

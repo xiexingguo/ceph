@@ -6444,6 +6444,59 @@ static std::vector<Option> get_rbd_options() {
     Option("rbd_journal_max_concurrent_object_sets", Option::TYPE_INT, Option::LEVEL_ADVANCED)
     .set_default(0)
     .set_description("maximum number of object sets a journal client can be behind before it is automatically unregistered"),
+
+    Option("rbd_qos_iops_limit", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(0)
+    .set_description("the desired limit of IO operations per second"),
+
+    Option("rbd_qos_bps_limit", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(0)
+    .set_description("the desired limit of IO bytes per second"),
+
+    Option("rbd_qos_read_iops_limit", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(0)
+    .set_description("the desired limit of read operations per second"),
+
+    Option("rbd_qos_write_iops_limit", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(0)
+    .set_description("the desired limit of write operations per second"),
+
+    Option("rbd_qos_read_bps_limit", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(0)
+    .set_description("the desired limit of read bytes per second"),
+
+    Option("rbd_qos_write_bps_limit", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(0)
+    .set_description("the desired limit of write bytes per second"),
+
+    Option("rbd_qos_iops_burst", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(0)
+    .set_description("the desired burst limit of IO operations"),
+
+    Option("rbd_qos_bps_burst", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(0)
+    .set_description("the desired burst limit of IO bytes"),
+
+    Option("rbd_qos_read_iops_burst", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(0)
+    .set_description("the desired burst limit of read operations"),
+
+    Option("rbd_qos_write_iops_burst", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(0)
+    .set_description("the desired burst limit of write operations"),
+
+    Option("rbd_qos_read_bps_burst", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(0)
+    .set_description("the desired burst limit of read bytes"),
+
+    Option("rbd_qos_write_bps_burst", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(0)
+    .set_description("the desired burst limit of write bytes"),
+
+    Option("rbd_qos_schedule_tick_min", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(50)
+    .set_min(1)
+    .set_description("minimum schedule tick (in milliseconds) for QoS"),
   });
 }
 

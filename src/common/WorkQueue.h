@@ -422,6 +422,11 @@ public:
       _void_process_finish(nullptr);
       m_items.push_front(item);
     }
+    void requeue_back(T *item) {
+      Mutex::Locker pool_locker(m_pool->_lock);
+      _void_process_finish(nullptr);
+      m_items.push_back(item);
+    }
     void signal() {
       Mutex::Locker pool_locker(m_pool->_lock);
       m_pool->_cond.SignalOne();

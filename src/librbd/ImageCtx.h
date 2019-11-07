@@ -202,6 +202,20 @@ namespace librbd {
     bool skip_partial_discard;
     bool blkin_trace_all;
 
+    uint64_t qos_schedule_tick_min;
+    uint64_t qos_iops_limit;
+    uint64_t qos_iops_burst;
+    uint64_t qos_bps_limit;
+    uint64_t qos_bps_burst;
+    uint64_t qos_read_iops_limit;
+    uint64_t qos_read_iops_burst;
+    uint64_t qos_write_iops_limit;
+    uint64_t qos_write_iops_burst;
+    uint64_t qos_read_bps_limit;
+    uint64_t qos_read_bps_burst;
+    uint64_t qos_write_bps_limit;
+    uint64_t qos_write_bps_burst;
+
     LibrbdAdminSocketHook *asok_hook;
 
     exclusive_lock::Policy *exclusive_lock_policy = nullptr;
