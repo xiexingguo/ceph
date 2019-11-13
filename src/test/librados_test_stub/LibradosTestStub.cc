@@ -1234,6 +1234,14 @@ int cls_cxx_map_get_val(cls_method_context_t hctx, const string &key,
   return 0;
 }
 
+int cls_cxx_map_get_vals(cls_method_context_t hctx, const std::set<string> &keys,
+                         std::map<string, bufferlist> *vals)
+{
+  librados::TestClassHandler::MethodContext *ctx =
+    reinterpret_cast<librados::TestClassHandler::MethodContext*>(hctx);
+  return 0;
+}
+
 int cls_cxx_map_get_vals(cls_method_context_t hctx, const string &start_obj,
                          const string &filter_prefix, uint64_t max_to_get,
                          std::map<string, bufferlist> *vals, bool *more) {
