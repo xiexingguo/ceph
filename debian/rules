@@ -6,7 +6,7 @@ export DESTDIR=$(CURDIR)/debian/tmp
 export DEB_HOST_ARCH      ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
 
 extraopts += -DWITH_RDMA=OFF
-extraopts += -DUSE_CRYPTOPP=OFF -DWITH_OCF=ON -DWITH_LTTNG=ON -DWITH_PYTHON3=ON
+extraopts += -DUSE_CRYPTOPP=OFF -DWITH_OCF=ON -DWITH_PYTHON3=ON
 extraopts += -DWITH_CEPHFS_JAVA=ON
 # assumes that ceph is exmpt from multiarch support, so we override the libdir.
 extraopts += -DCMAKE_INSTALL_LIBDIR=/usr/lib
@@ -29,6 +29,9 @@ ifneq (,$(filter $(DEB_HOST_ARCH), arm armel armhf arm64 i386 amd64 mips mipsel 
 else
   extraopts += -DWITH_BOOST_CONTEXT=OFF
 endif
+
+extraoptions += -DWITH_LTTNG=OFF -DWITH_BABELTRACE=OFF
+extraoptions += -DWITH_LEVELDB=OFF
 
 %:
 	dh $@ --buildsystem=cmake --with javahelper,python2,python3,systemd --parallel
