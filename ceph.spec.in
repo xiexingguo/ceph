@@ -247,7 +247,6 @@ Requires:      librgw2 = %{_epoch_prefix}%{version}-%{release}
 Requires:      ceph-selinux = %{_epoch_prefix}%{version}-%{release}
 %endif
 Requires:      python
-Requires:      python-requests
 Requires:      python-setuptools
 Requires:      grep
 Requires:      xfsprogs
@@ -292,7 +291,6 @@ Requires:	python-prettytable
 %if 0%{?suse_version}
 Requires:	python-PrettyTable
 %endif
-Requires:	python-requests
 %{?systemd_requires}
 %if 0%{?suse_version}
 Requires(pre):	pwdutils
@@ -337,6 +335,7 @@ Summary:        Ceph Manager Daemon
 Group:          System/Filesystems
 %endif
 Requires:       ceph-base = %{_epoch_prefix}%{version}-%{release}
+Requires:       python-requests
 Requires:       python-six
 %if 0%{?fedora} || 0%{?rhel}
 Requires:       python-cherrypy
