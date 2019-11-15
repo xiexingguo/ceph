@@ -12,6 +12,8 @@ overrides:
         osd heartbeat grace: 40
       mon:
         mon osd crush smoke test: false
+      osd:
+        osd fast shutdown: false
     log-whitelist:
       - overall HEALTH_
 # valgrind is slow.. we might get PGs stuck peering etc

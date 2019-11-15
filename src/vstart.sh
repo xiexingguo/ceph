@@ -514,6 +514,8 @@ $DAEMONOPTS
         osd scrub load threshold = 2000.0
         osd debug op order = true
         osd debug misdirected ops = true
+        osd fast shutdown = false
+
         filestore wbthrottle xfs ios start flusher = 10
         filestore wbthrottle xfs ios hard limit = 20
         filestore wbthrottle xfs inodes hard limit = 30
