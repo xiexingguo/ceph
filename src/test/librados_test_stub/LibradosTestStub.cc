@@ -734,6 +734,10 @@ void IoCtx::set_qos_quota(int64_t res, int64_t wgt, int64_t lim, int64_t bdw) {
   return;
 }
 
+bool IoCtx::is_paused_by_qos() {
+  return false;
+}
+
 static int save_operation_result(int result, int *pval) {
   if (pval != NULL) {
     *pval = result;
