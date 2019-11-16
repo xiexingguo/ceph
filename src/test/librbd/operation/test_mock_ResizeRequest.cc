@@ -94,6 +94,12 @@ public:
     }
   }
 
+  void expect_status_update_size(MockImageCtx &mock_image_ctx) {
+    expect_is_lock_owner(mock_image_ctx);
+    EXPECT_CALL(get_mock_io_ctx(mock_image_ctx.md_ctx),
+                exec(RBD_STATUS, _, StrEq("rbd"), StrEq("status_update_size"), _, _, _));
+  }
+
   void expect_update_header(MockImageCtx &mock_image_ctx, int r) {
     if (mock_image_ctx.old_format) {
       EXPECT_CALL(get_mock_io_ctx(mock_image_ctx.md_ctx),
@@ -189,6 +195,7 @@ TEST_F(TestMockOperationResizeRequest, GrowSuccess) {
   expect_unblock_writes(mock_image_ctx);
   expect_grow_object_map(mock_image_ctx);
   expect_block_writes(mock_image_ctx, 0);
+  expect_status_update_size(mock_image_ctx);
   expect_update_header(mock_image_ctx, 0);
   expect_unblock_writes(mock_image_ctx);
   expect_commit_op_event(mock_image_ctx, 0);
@@ -216,6 +223,7 @@ TEST_F(TestMockOperationResizeRequest, ShrinkSuccess) {
   expect_invalidate_cache(mock_image_ctx, 0);
   expect_trim(mock_image_ctx, mock_trim_request, 0);
   expect_block_writes(mock_image_ctx, 0);
+  expect_status_update_size(mock_image_ctx);
   expect_update_header(mock_image_ctx, 0);
   expect_shrink_object_map(mock_image_ctx);
   expect_unblock_writes(mock_image_ctx);
@@ -367,6 +375,7 @@ TEST_F(TestMockOperationResizeRequest, UpdateHeaderError) {
   expect_unblock_writes(mock_image_ctx);
   expect_grow_object_map(mock_image_ctx);
   expect_block_writes(mock_image_ctx, 0);
+  expect_status_update_size(mock_image_ctx);
   expect_update_header(mock_image_ctx, -EINVAL);
   expect_unblock_writes(mock_image_ctx);
   expect_commit_op_event(mock_image_ctx, -EINVAL);
