@@ -160,6 +160,10 @@ public:
     delete m_mock_imctx;
   }
 
+  void expect_disable_status_update(MockImageCtx &mock_image_ctx) {
+    EXPECT_CALL(mock_image_ctx, disable_status_update());
+  }
+
   void expect_state_open(MockImageCtx &mock_image_ctx, int r) {
     EXPECT_CALL(*mock_image_ctx.state, open(_, _))
       .WillOnce(Invoke([r](bool open_parent, Context *on_ready) {
@@ -218,6 +222,24 @@ public:
     EXPECT_CALL(get_mock_io_ctx(mock_image_ctx.md_ctx),
                                exec(RBD_CHILDREN, _, StrEq("rbd"), StrEq("remove_child"), _,
                                     _, _))
+      .WillOnce(Return(r));
+  }
+
+  void expect_status_remove_child(MockImageCtx &mock_image_ctx, librados::IoCtx &ioctx, int r) {
+    if (!(mock_image_ctx.parent_md.spec.pool_id < 0)) {
+      EXPECT_CALL(get_mock_io_ctx(ioctx),
+                  exec(RBD_STATUS, _, StrEq("rbd"),
+                       StrEq("status_remove_child"),
+                       _, _, _))
+        .WillOnce(Return(r));
+    }
+  }
+
+  void expect_status_remove_image(librados::IoCtx &ioctx, int r) {
+    EXPECT_CALL(get_mock_io_ctx(ioctx),
+                exec(RBD_STATUS, _, StrEq("rbd"),
+                    StrEq("status_remove_image"),
+                    _, _, _))
       .WillOnce(Return(r));
   }
 
@@ -282,6 +304,7 @@ TEST_F(TestMockImageRemoveRequest, SuccessV1) {
   MockJournalRemoveRequest mock_journal_remove_request;
 
   InSequence seq;
+  expect_disable_status_update(*m_mock_imctx);
   expect_state_open(*m_mock_imctx, 0);
   expect_get_group(*m_mock_imctx, 0);
   expect_trim(*m_mock_imctx, mock_trim_request, 0);
@@ -308,6 +331,7 @@ TEST_F(TestMockImageRemoveRequest, OpenFailV1) {
   MockTrimRequest mock_trim_request;
 
   InSequence seq;
+  expect_disable_status_update(*m_mock_imctx);
   expect_state_open(*m_mock_imctx, -ENOENT);
   expect_wq_queue(op_work_queue, 0);
 
@@ -338,6 +362,7 @@ TEST_F(TestMockImageRemoveRequest, SuccessV2) {
   MockMirrorDisableRequest mock_mirror_disable_request;
 
   InSequence seq;
+  expect_disable_status_update(*m_mock_imctx);
   expect_state_open(*m_mock_imctx, 0);
 
   expect_test_features(*m_mock_imctx);
@@ -349,6 +374,8 @@ TEST_F(TestMockImageRemoveRequest, SuccessV2) {
   expect_trim(*m_mock_imctx, mock_trim_request, 0);
   expect_op_work_queue(*m_mock_imctx);
   expect_remove_child(*m_mock_imctx, 0);
+  expect_status_remove_child(*m_mock_imctx, m_ioctx, 0);
+  expect_status_remove_image(m_ioctx, 0);
   expect_mirror_disable(*m_mock_imctx, mock_mirror_disable_request, 0);
   expect_state_close(*m_mock_imctx);
   expect_wq_queue(op_work_queue, 0);
@@ -383,6 +410,7 @@ TEST_F(TestMockImageRemoveRequest, NotExistsV2) {
   MockMirrorDisableRequest mock_mirror_disable_request;
 
   InSequence seq;
+  expect_disable_status_update(*m_mock_imctx);
   expect_state_open(*m_mock_imctx, 0);
 
   expect_test_features(*m_mock_imctx);
@@ -394,6 +422,8 @@ TEST_F(TestMockImageRemoveRequest, NotExistsV2) {
   expect_trim(*m_mock_imctx, mock_trim_request, 0);
   expect_op_work_queue(*m_mock_imctx);
   expect_remove_child(*m_mock_imctx, 0);
+  expect_status_remove_child(*m_mock_imctx, m_ioctx, 0);
+  expect_status_remove_image(m_ioctx, 0);
   expect_mirror_disable(*m_mock_imctx, mock_mirror_disable_request, 0);
   expect_state_close(*m_mock_imctx);
   expect_wq_queue(op_work_queue, 0);
