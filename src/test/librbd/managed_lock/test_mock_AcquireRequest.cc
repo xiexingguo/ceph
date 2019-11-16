@@ -199,6 +199,8 @@ TEST_F(TestMockManagedLockAcquireRequest, LockBusy) {
   expect_lock(mock_image_ctx, -ENOENT);
 
   C_SaferCond ctx;
+  CephContext *cct = mock_image_ctx.cct;
+  cct->_conf->set_val("rbd_blacklist_on_break_lock", "true");
   MockAcquireRequest *req = MockAcquireRequest::create(mock_image_ctx.md_ctx,
      mock_image_ctx.image_watcher, ictx->op_work_queue, mock_image_ctx.header_oid,
      TEST_COOKIE, true, true, 0, &ctx);
@@ -259,6 +261,8 @@ TEST_F(TestMockManagedLockAcquireRequest, BreakLockError) {
   expect_break_lock(mock_image_ctx, mock_break_request, -EINVAL);
 
   C_SaferCond ctx;
+  CephContext *cct = mock_image_ctx.cct;
+  cct->_conf->set_val("rbd_blacklist_on_break_lock", "true");
   MockAcquireRequest *req = MockAcquireRequest::create(mock_image_ctx.md_ctx,
      mock_image_ctx.image_watcher, ictx->op_work_queue, mock_image_ctx.header_oid,
      TEST_COOKIE, true, true, 0, &ctx);
