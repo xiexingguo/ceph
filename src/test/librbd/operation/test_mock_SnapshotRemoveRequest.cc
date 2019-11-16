@@ -50,6 +50,13 @@ public:
     return 0;
   }
 
+  void expect_status_remove_snapshot(MockImageCtx &mock_image_ctx) {
+    EXPECT_CALL(get_mock_io_ctx(mock_image_ctx.md_ctx),
+                exec(RBD_STATUS, _, StrEq("rbd"),
+                StrEq("status_remove_snapshot"),
+                _, _, _));
+  }
+
   void expect_object_map_snap_remove(MockImageCtx &mock_image_ctx, int r) {
     if (mock_image_ctx.object_map != nullptr) {
       EXPECT_CALL(*mock_image_ctx.object_map, snapshot_remove(_, _))
@@ -139,6 +146,7 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, Success) {
 
   ::testing::InSequence seq;
   uint64_t snap_id = ictx->snap_info.rbegin()->first;
+  expect_status_remove_snapshot(mock_image_ctx);
   expect_object_map_snap_remove(mock_image_ctx, 0);
   expect_get_parent_spec(mock_image_ctx, 0);
   expect_verify_lock_ownership(mock_image_ctx);
@@ -192,6 +200,7 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, FlattenedCloneRemovesChild) {
   expect_op_work_queue(mock_image_ctx);
 
   uint64_t snap_id = ictx->snap_info.rbegin()->first;
+  expect_status_remove_snapshot(mock_image_ctx);
   expect_object_map_snap_remove(mock_image_ctx, 0);
   expect_get_parent_spec(mock_image_ctx, 0);
   expect_remove_child(mock_image_ctx, -ENOENT);
@@ -230,6 +239,7 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, ObjectMapSnapRemoveError) {
 
   ::testing::InSequence seq;
   uint64_t snap_id = ictx->snap_info.rbegin()->first;
+  expect_status_remove_snapshot(mock_image_ctx);
   expect_object_map_snap_remove(mock_image_ctx, -EINVAL);
 
   C_SaferCond cond_ctx;
@@ -260,6 +270,7 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, RemoveChildParentError) {
 
   ::testing::InSequence seq;
   uint64_t snap_id = ictx->snap_info.rbegin()->first;
+  expect_status_remove_snapshot(mock_image_ctx);
   expect_object_map_snap_remove(mock_image_ctx, 0);
   expect_get_parent_spec(mock_image_ctx, -ENOENT);
 
@@ -309,6 +320,7 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, RemoveChildError) {
   expect_op_work_queue(mock_image_ctx);
 
   uint64_t snap_id = ictx->snap_info.rbegin()->first;
+  expect_status_remove_snapshot(mock_image_ctx);
   expect_object_map_snap_remove(mock_image_ctx, 0);
   expect_get_parent_spec(mock_image_ctx, 0);
   expect_remove_child(mock_image_ctx, -EINVAL);
@@ -346,6 +358,7 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, RemoveSnapError) {
 
   ::testing::InSequence seq;
   uint64_t snap_id = ictx->snap_info.rbegin()->first;
+  expect_status_remove_snapshot(mock_image_ctx);
   expect_object_map_snap_remove(mock_image_ctx, 0);
   expect_get_parent_spec(mock_image_ctx, 0);
   expect_verify_lock_ownership(mock_image_ctx);
