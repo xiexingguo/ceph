@@ -86,6 +86,17 @@ public:
     }
   }
 
+  void expect_status_add_snapshot(MockImageCtx &mock_image_ctx) {
+    if (mock_image_ctx.object_map != nullptr) {
+      EXPECT_CALL(*mock_image_ctx.object_map,
+                  get_object_map(_)).WillOnce(Return(0));
+    }
+    EXPECT_CALL(get_mock_io_ctx(mock_image_ctx.md_ctx),
+                exec(RBD_STATUS, _, StrEq("rbd"),
+                StrEq("status_add_snapshot"),
+                _, _, _));
+  }
+
   void expect_object_map_snap_create(MockImageCtx &mock_image_ctx) {
     if (mock_image_ctx.object_map != nullptr) {
       EXPECT_CALL(*mock_image_ctx.object_map, snapshot_add(_, _))
@@ -133,6 +144,7 @@ TEST_F(TestMockOperationSnapshotCreateRequest, Success) {
   expect_block_writes(mock_image_ctx);
   expect_allocate_snap_id(mock_image_ctx, 0);
   expect_snap_create(mock_image_ctx, 0);
+  expect_status_add_snapshot(mock_image_ctx);
   if (!mock_image_ctx.old_format) {
     expect_object_map_snap_create(mock_image_ctx);
     expect_update_snap_context(mock_image_ctx);
@@ -202,6 +214,7 @@ TEST_F(TestMockOperationSnapshotCreateRequest, CreateSnapStale) {
   expect_block_writes(mock_image_ctx);
   expect_allocate_snap_id(mock_image_ctx, -ESTALE);
   expect_snap_create(mock_image_ctx, -ESTALE);
+  expect_status_add_snapshot(mock_image_ctx);
   if (!mock_image_ctx.old_format) {
     expect_object_map_snap_create(mock_image_ctx);
     expect_update_snap_context(mock_image_ctx);
@@ -304,6 +317,7 @@ TEST_F(TestMockOperationSnapshotCreateRequest, SkipObjectMap) {
   expect_block_writes(mock_image_ctx);
   expect_allocate_snap_id(mock_image_ctx, 0);
   expect_snap_create(mock_image_ctx, 0);
+  expect_status_add_snapshot(mock_image_ctx);
   expect_update_snap_context(mock_image_ctx);
   expect_unblock_writes(mock_image_ctx);
 
