@@ -413,11 +413,19 @@ void PGMapDigest::recovery_rate_summary(Formatter *f, ostream *out,
   double duration = (double)delta_stamp;
   pool_stat_t pos_delta = delta_sum;
   pos_delta.floor(0);
-  int64_t ops = duration > 0 ?
+  bool recovery = false;
+  for (auto &p : num_pg_by_state) {
+    if (p.first & (PG_STATE_RECOVERING | PG_STATE_BACKFILLING |
+                   PG_STATE_RECOVERY_WAIT | PG_STATE_BACKFILL_WAIT)) {
+      recovery = true;
+      break;
+    }
+  }
+  int64_t ops = (duration > 0 && recovery) ?
                 pos_delta.stats.sum.num_objects_recovered / duration : 0;
-  int64_t bps = duration > 0 ?
+  int64_t bps = (duration > 0 && recovery) ?
                 pos_delta.stats.sum.num_bytes_recovered / duration : 0;
-  int64_t kps = duration > 0 ?
+  int64_t kps = (duration > 0 && recovery) ?
                 pos_delta.stats.sum.num_keys_recovered / duration : 0;
   if (f) {
     f->dump_int("recovering_objects_per_sec", ops);
