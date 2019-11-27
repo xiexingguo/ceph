@@ -3838,6 +3838,7 @@ struct pg_missing_item {
           uint8_t f;
           ::decode(f, bl);
           flags = static_cast<missing_flags_t>(f); 
+          clean_regions.mark_fully_dirty();
         }
     } else if (e == eversion_t(-1, -1)) {
       // support NAUTILUS
@@ -3848,6 +3849,7 @@ struct pg_missing_item {
       // legacy encoding
       need = e;
       ::decode(have, bl);
+      clean_regions.mark_fully_dirty();
     }
   }
 
