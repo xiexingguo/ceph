@@ -433,7 +433,10 @@ struct StatusSnapshot {
 
   void encode(bufferlist &bl) const;
   void decode(bufferlist::iterator &it);
+  void dump(Formatter *f) const;
   void dump2(Formatter *f) const;
+
+  static void generate_test_instances(std::list<StatusSnapshot*> &o);
 };
 WRITE_CLASS_ENCODER(StatusSnapshot);
 
@@ -452,13 +455,16 @@ struct StatusImage {
   uint64_t used = 0;
   int64_t qos_iops = -1;
   int64_t qos_bps = -1;
-  int64_t qos_reservation = -1;
-  int64_t qos_weight = -1;
+  int64_t qos_reservation = -1; // deprecated
+  int64_t qos_weight = -1;      // deprecated
   std::set<uint64_t> snapshot_ids;
 
   void encode(bufferlist &bl) const;
   void decode(bufferlist::iterator &it);
+  void dump(Formatter *f) const;
   void dump2(Formatter *f) const;
+
+  static void generate_test_instances(std::list<StatusImage*> &o);
 };
 WRITE_CLASS_ENCODER(StatusImage);
 

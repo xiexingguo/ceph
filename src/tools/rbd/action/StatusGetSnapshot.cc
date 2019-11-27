@@ -14,24 +14,48 @@
 namespace rbd {
 
 namespace action {
-namespace get_image_usage {
+namespace status_get_snapshot {
 
 namespace at = argument_types;
 namespace po = boost::program_options;
 
 int do_get_usage(librbd::Image& image, Formatter *f) {
-  librbd::status_usage_t usage;
+  librbd::status_snapshot_t snap;
 
-  int r = image.status_get_usage(&usage);
+  int r = image.status_get_snapshot(&snap);
   if (r < 0)
     return r;
 
   if (f) {
-    f->open_object_section("usage");
+    f->open_object_section("snapshot");
 
-    f->dump_unsigned("state", usage.state);
-    f->dump_unsigned("size", usage.size);
-    f->dump_unsigned("used", usage.used);
+    string ts_str = "";
+    ts_str = ctime(&snap.create_timestamp);
+    ts_str = ts_str.substr(0, ts_str.length() - 1);
+    f->dump_string("create_timestamp", ts_str);
+
+    f->dump_unsigned("namespace_type", static_cast<uint64_t>(snap.namespace_type));
+    f->dump_string("name", snap.name);
+    f->dump_string("image_id", snap.image_id);
+    f->dump_unsigned("id", snap.id);
+    f->dump_unsigned("size", snap.size);
+    f->dump_unsigned("used", snap.used);
+    f->dump_unsigned("dirty", snap.dirty);
+
+    if (!snap.clone_ids.empty()) {
+      f->open_array_section("clone_ids");
+
+      for (auto &clone_it : snap.clone_ids) {
+        f->open_object_section("clone_id");
+
+        f->dump_int("pool_id", clone_it.pool_id);
+        f->dump_string("image_id", clone_it.image_id);
+
+        f->close_section();
+      }
+
+      f->close_section();
+    }
 
     f->close_section();
   }
@@ -45,7 +69,7 @@ int do_get_usage(librbd::Image& image, Formatter *f) {
 
 void get_arguments(po::options_description *positional,
                    po::options_description *options) {
-  at::add_image_spec_options(positional, options, at::ARGUMENT_MODIFIER_NONE);
+  at::add_snap_spec_options(positional, options, at::ARGUMENT_MODIFIER_NONE);
   at::add_format_options(options);
 }
 
@@ -56,7 +80,7 @@ int execute(const po::variables_map &vm) {
   std::string snap_name;
   int r = utils::get_pool_image_snapshot_names(
       vm, at::ARGUMENT_MODIFIER_NONE, &arg_index, &pool_name, &image_name,
-      &snap_name, utils::SNAPSHOT_PRESENCE_PERMITTED, utils::SPEC_VALIDATION_NONE);
+      &snap_name, utils::SNAPSHOT_PRESENCE_REQUIRED, utils::SPEC_VALIDATION_NONE);
   if (r < 0) {
     return r;
   }
@@ -76,7 +100,7 @@ int execute(const po::variables_map &vm) {
 
   r = do_get_usage(image, formatter.get());
   if (r < 0) {
-    std::cerr << "rbd: get_image_usage: " << cpp_strerror(r) << std::endl;
+    std::cerr << "rbd: get_snapshot: " << cpp_strerror(r) << std::endl;
     return r;
   }
 
@@ -84,8 +108,8 @@ int execute(const po::variables_map &vm) {
 }
 
 Shell::Action action(
-  {"get-usage"}, {}, "Get rbd usage.", "", &get_arguments, &execute);
+  {"status-get-snapshot"}, {}, "Get rbd snapshot.", "", &get_arguments, &execute);
 
-}// namespace get_image_usage
+}// namespace status_get_snapshot
 } // namespace action
 } // namespace rbd

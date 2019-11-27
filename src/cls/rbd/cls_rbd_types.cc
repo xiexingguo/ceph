@@ -521,13 +521,15 @@ void StatusSnapshot::decode(bufferlist::iterator &it) {
   DECODE_FINISH(it);
 }
 
-void StatusSnapshot::dump2(Formatter *f) const {
+void StatusSnapshot::dump(Formatter *f) const {
   f->dump_string("image_id", image_id.c_str());
+  f->dump_stream("create_timestamp") << create_timestamp;
   snapshot_namespace.dump(f);
   f->dump_string("name", name.c_str());
   f->dump_unsigned("id", id);
   f->dump_unsigned("size", size);
-
+  f->dump_unsigned("used", used);
+  f->dump_unsigned("dirty", dirty);
   f->open_array_section("clone_ids");
   for (auto it : clone_ids) {
     f->open_object_section("id");
@@ -535,6 +537,27 @@ void StatusSnapshot::dump2(Formatter *f) const {
     f->close_section();
   }
   f->close_section();
+}
+
+void StatusSnapshot::dump2(Formatter *f) const {
+  f->dump_string("image_id", image_id.c_str());
+  snapshot_namespace.dump(f);
+  f->dump_string("name", name.c_str());
+  f->dump_unsigned("id", id);
+  f->dump_unsigned("size", size);
+  f->dump_unsigned("used", used);
+  f->dump_unsigned("dirty", dirty);
+  f->open_array_section("clone_ids");
+  for (auto it : clone_ids) {
+    f->open_object_section("id");
+    it.dump(f);
+    f->close_section();
+  }
+  f->close_section();
+}
+
+void StatusSnapshot::generate_test_instances(std::list<StatusSnapshot*> &o) {
+  o.push_back(new StatusSnapshot());
 }
 
 void StatusImage::encode(bufferlist &bl) const {
@@ -581,6 +604,33 @@ void StatusImage::decode(bufferlist::iterator &it) {
   DECODE_FINISH(it);
 }
 
+void StatusImage::dump(Formatter *f) const {
+  f->dump_unsigned("state", state);
+  f->dump_stream("create_timestamp") << create_timestamp;
+  f->open_object_section("parent");
+  parent.dump(f);
+  f->close_section();
+  f->dump_int("data_pool_id", data_pool_id);
+  f->dump_string("name", name.c_str());
+  f->dump_string("id", id.c_str());
+  f->dump_unsigned("order", order);
+  f->dump_unsigned("stripe_unit", stripe_unit);
+  f->dump_unsigned("stripe_count", stripe_count);
+  f->dump_unsigned("size", size);
+  f->dump_unsigned("used", used);
+  f->dump_int("qos_iops", qos_iops);
+  f->dump_int("qos_bps", qos_bps);
+  // ignore reservation and weight
+//  f->dump_int("qos_reservation", qos_reservation);
+//  f->dump_int("qos_weight", qos_weight);
+
+  f->open_array_section("snapshot_ids");
+  for (auto &it : snapshot_ids) {
+    f->dump_unsigned("id", it);
+  }
+  f->close_section();
+}
+
 void StatusImage::dump2(Formatter *f) const {
   f->dump_unsigned("state", state);
   f->open_object_section("parent");
@@ -593,16 +643,22 @@ void StatusImage::dump2(Formatter *f) const {
   f->dump_unsigned("stripe_unit", stripe_unit);
   f->dump_unsigned("stripe_count", stripe_count);
   f->dump_unsigned("size", size);
+  f->dump_unsigned("used", used);
   f->dump_int("qos_iops", qos_iops);
   f->dump_int("qos_bps", qos_bps);
-  f->dump_int("qos_reservation", qos_reservation);
-  f->dump_int("qos_weight", qos_weight);
+  // ignore reservation and weight
+//  f->dump_int("qos_reservation", qos_reservation);
+//  f->dump_int("qos_weight", qos_weight);
 
   f->open_array_section("snapshot_ids");
   for (auto &it : snapshot_ids) {
     f->dump_unsigned("id", it);
   }
   f->close_section();
+}
+
+void StatusImage::generate_test_instances(std::list<StatusImage*> &o) {
+  o.push_back(new StatusImage());
 }
 
 void StatusUsage::encode(bufferlist &bl) const {

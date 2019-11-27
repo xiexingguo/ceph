@@ -36,7 +36,9 @@ set(rbd_srcs
   action/Snap.cc
   action/Status.cc
   action/StatusBuilder.cc
-  action/StatusGetImageUsage.cc
+  action/StatusGetImage.cc
+  action/StatusGetSnapshot.cc
+  action/StatusGetUsage.cc
   action/StatusListImages.cc
   action/StatusListSnapshots.cc
   action/StatusListUsages.cc

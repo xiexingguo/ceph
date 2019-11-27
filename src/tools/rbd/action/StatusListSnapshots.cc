@@ -108,7 +108,7 @@ int execute(const po::variables_map &vm) {
 }
 
 Shell::Action action(
-  {"list-snapshots"}, {}, "List rbd snapshots.", "", &get_arguments, &execute);
+  {"status-list-snapshots"}, {}, "List rbd snapshots.", "", &get_arguments, &execute);
 
 } // namespace status_list_snapshots
 } // namespace action

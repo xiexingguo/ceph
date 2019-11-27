@@ -695,6 +695,11 @@ namespace librbd {
     return librbd::api::Image<>::status_inc_version(io_ctx, version);
   }
 
+  int RBD::status_set_version(IoCtx &io_ctx, uint64_t version)
+  {
+    return librbd::api::Image<>::status_set_version(io_ctx, version);
+  }
+
   int RBD::status_list_images(IoCtx &io_ctx, const std::string &start,
       size_t max, std::vector<status_image_t> *images)
   {
@@ -1981,6 +1986,18 @@ namespace librbd {
   {
     ImageCtx *ictx = (ImageCtx *)ctx;
     ictx->notify_update();
+  }
+
+  int Image::status_get_image(status_image_t *image)
+  {
+    ImageCtx *ictx = (ImageCtx *)ctx;
+    return librbd::api::Image<>::status_get_image(ictx, image);
+  }
+
+  int Image::status_get_snapshot(status_snapshot_t *snap)
+  {
+    ImageCtx *ictx = (ImageCtx *)ctx;
+    return librbd::api::Image<>::status_get_snapshot(ictx, snap);
   }
 
   int Image::status_get_usage(status_usage_t *usage)
@@ -4394,6 +4411,17 @@ extern "C"  int rbd_status_inc_version(rados_ioctx_t p, uint64_t version)
   return 0;
 }
 
+extern "C"  int rbd_status_set_version(rados_ioctx_t p, uint64_t version)
+{
+  librados::IoCtx io_ctx;
+  librados::IoCtx::from_rados_ioctx_t(p, io_ctx);
+  int r = librbd::api::Image<>::status_set_version(io_ctx, version);
+  if (r < 0) {
+    return r;
+  }
+  return 0;
+}
+
 extern "C"  int rbd_status_list_images(rados_ioctx_t p,
     const char *start, size_t max,
     rbd_status_image_t *c_images, size_t *size)
@@ -4588,7 +4616,7 @@ extern "C" int rbd_status_get_usage(rbd_image_t image,
   }
 
   c_usage->state = cpp_usage.state;
-  c_usage->id = 0;
+  c_usage->id = 0;      // so we do not have to release the `strdup`ed memory
   c_usage->size = cpp_usage.size;
   c_usage->used = cpp_usage.used;
   return 0;

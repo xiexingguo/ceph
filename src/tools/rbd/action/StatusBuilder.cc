@@ -15,10 +15,18 @@
 #include "cls/rbd/cls_rbd.h"
 #include "cls/rbd/cls_rbd_types.h"
 #include "cls/rbd/cls_rbd_client.h"
+#include "include/rbd/librbdx.hpp"
 
 namespace rbd {
 namespace action {
 namespace status_builder {
+
+enum {
+  v1 = 1,       // ignore du
+  v2,           // include image head du
+  v3,           // include snapshot du
+  v4,           // include snapshot dirty
+};
 
 namespace at = argument_types;
 namespace po = boost::program_options;
@@ -121,15 +129,17 @@ void get_check_arguments(po::options_description *positional,
   at::add_image_option(options, at::ARGUMENT_MODIFIER_NONE);
   at::add_image_id_option(options);
   options->add_options()
-      ("check-status", po::bool_switch(), "check status");
+      ("v1", po::bool_switch(), "check status records, du ignored");
   options->add_options()
-      ("check-directory", po::bool_switch(), "check directory");
+      ("v2", po::bool_switch(), "check status records, image head du included");
   options->add_options()
-      ("check-trash", po::bool_switch(), "check trash");
+      ("v3", po::bool_switch(), "check status records, snapshot du included");
   options->add_options()
-      ("rebuild", po::bool_switch(), "rebuild optionally");
+      ("v4", po::bool_switch(), "check status records, snapshot dirty included");
   options->add_options()
-      ("from-scratch", po::bool_switch(), "rebuild from scratch");
+      ("rebuild", po::bool_switch(), "rebuild status record if inconsistency exists");
+  options->add_options()
+      ("purge", po::bool_switch(), "purge status records");
 }
 
 template<typename T>
@@ -270,7 +280,10 @@ int check_snapshot_existent(librados::IoCtx &ioctx, std::string image_id,
   return -ENOENT;
 }
 
-int build_status_children(librados::IoCtx &ioctx, const librbd::ParentSpec &spec,
+/*
+ * list children of given parent spec
+ */
+int build_children(librados::IoCtx &ioctx, const librbd::ParentSpec &spec,
     std::set<cls::rbd::StatusCloneId> *children) {
   // search all pools for children depending on this snapshot
   librados::Rados rados(ioctx);
@@ -328,197 +341,230 @@ int build_status_children(librados::IoCtx &ioctx, const librbd::ParentSpec &spec
   return 0;
 }
 
+
+
+/*
+ * build status record of a single image
+ */
 int build_status_image(librados::IoCtx &ioctx, const std::string &id,
+    int checkv,
     cls::rbd::StatusImage *image,
     std::map<uint64_t, cls::rbd::StatusSnapshot> *snapshots) {
-  image->id = id;
+  auto xrbd = librbdx::xRBD();
 
-  std::string oid = header_name(id);
-
-  std::string object_prefix;
-  uint8_t order;
-  int r = librbd::cls_client::get_immutable_metadata(&ioctx, oid,
-      &object_prefix, &order);
-  if (r < 0) {
-    std::cerr << __func__ << ": get_immutable_metadata: " << oid << " failed: "
-        << cpp_strerror(r) << std::endl;
-    return r;
-  }
-
-  uint64_t size, features, incompatible_features;
-  std::map<rados::cls::lock::locker_id_t, rados::cls::lock::locker_info_t> lockers;
-  bool exclusive_lock;
-  std::string lock_tag;
-  ::SnapContext snapc;
-  librbd::ParentInfo parent_info;
-  r = librbd::cls_client::get_mutable_metadata(&ioctx, oid, false,
-      &size, &features, &incompatible_features, &lockers, &exclusive_lock,
-      &lock_tag, &snapc, &parent_info);
-  if (r < 0) {
-    std::cerr << __func__ << ": get_mutable_metadata: " << oid << " failed: "
-        << cpp_strerror(r) << std::endl;
-    return r;
-  }
-
-  if (!snapc.is_valid()) {
-    std::cerr << __func__ << ": image: " << id << " has invalid snap context"
-        << std::endl;
-    return -EIO;
-  }
-
-  if (!snapc.snaps.empty()) {
-    std::vector<std::string> snap_names;
-    std::vector<uint64_t> snap_sizes;
-    std::vector<librbd::ParentInfo> snap_parents;
-    std::vector<uint8_t> snap_protection_statuses;
-    std::vector<utime_t> snap_timestamps;
-    std::vector<cls::rbd::SnapshotNamespace> snap_namespaces;
-
-    r = librbd::cls_client::snapshot_list(&ioctx, oid, snapc.snaps,
-        &snap_names, &snap_sizes, &snap_parents, &snap_protection_statuses);
+  if (checkv == v1) {
+    librbdx::image_info_t info;
+    int r = xrbd.get_info(ioctx, id, &info);
     if (r < 0) {
-      std::cerr << __func__ << ": snapshot_list: " << oid << " failed: "
-          << cpp_strerror(r) << std::endl;
-      return r;
-    }
-    r = librbd::cls_client::snapshot_timestamp_list(&ioctx, oid, snapc.snaps,
-        &snap_timestamps);
-    if (r < 0) {
-      std::cerr << __func__ << ": snapshot_timestamp_list: " << oid << " failed: "
-          << cpp_strerror(r) << std::endl;
-      return r;
-    }
-    r = librbd::cls_client::snapshot_namespace_list(&ioctx, oid, snapc.snaps,
-        &snap_namespaces);
-    if (r < 0) {
-      std::cerr << __func__ << ": snapshot_namespace_list: " << oid << " failed: "
-          << cpp_strerror(r) << std::endl;
       return r;
     }
 
-    image->snapshot_ids.insert(snapc.snaps.begin(), snapc.snaps.end());
+    image->state = cls::rbd::STATUS_IMAGE_STATE_IDLE;
+    if (info.watchers.size()) {
+      image->state = cls::rbd::STATUS_IMAGE_STATE_MAPPED;
+    }
+    image->create_timestamp = info.timestamp;
+    image->parent.pool_id = info.parent.spec.pool_id;
+    image->parent.image_id = info.parent.spec.image_id;
+    image->parent.snapshot_id = info.parent.spec.snap_id;
+    image->data_pool_id = info.data_pool_id;
+    image->name = info.name;
+    image->id = info.id;
+    image->order = info.order;
+    image->stripe_unit = info.stripe_unit;
+    image->stripe_count = info.stripe_count;
+    image->size = info.size;
+    image->used = 0;
+    image->qos_iops = info.qos.iops;
+    image->qos_bps = info.qos.bps;
+    // reservation and weight are ignored
+    image->qos_reservation = -1;
+    image->qos_weight = -1;
+    image->snapshot_ids.insert(info.snapc.snaps.begin(), info.snapc.snaps.end());
 
-    for (size_t i = 0; i < snapc.snaps.size(); ++i) {
+    auto pool_id = ioctx.get_id();
+
+    for (auto& it: info.snaps) {
+      auto& snap_info = it.second;
+
       std::set<cls::rbd::StatusCloneId> children;
-      snapid_t snapid = snapc.snaps[i];
-      librbd::ParentSpec parent_spec(ioctx.get_id(), id, snapid);
-      r = build_status_children(ioctx, parent_spec, &children);
+      librbd::ParentSpec parent_spec(pool_id, image->id, snap_info.id);
+      r = build_children(ioctx, parent_spec, &children);
       if (r < 0) {
         std::cerr << __func__ << ": build_children: "
-            << ioctx.get_id() << "/" << id << "@" << snapid.val << " failed: "
+            << pool_id << "/" << id << "@" << snap_info.id << " failed: "
             << cpp_strerror(r) << std::endl;
         return r;
       }
 
-      cls::rbd::StatusSnapshot snapshot;
-      snapshot.create_timestamp = snap_timestamps[i];
-      snapshot.snapshot_namespace = snap_namespaces[i];
-      snapshot.name = snap_names[i];
-      snapshot.image_id = id;
-      snapshot.id = snapid.val;
-      snapshot.size = snap_sizes[i];
-      snapshot.used = 0;
-      snapshot.dirty = 0;
-      snapshot.clone_ids = std::move(children);
+      cls::rbd::StatusSnapshot snap;
+      snap.create_timestamp = snap_info.timestamp;
 
-      snapshots->insert(std::make_pair(snapshot.id, snapshot));
+      cls::rbd::SnapshotNamespace sn;
+      switch (cls::rbd::SnapshotNamespaceType(snap_info.snap_ns_type)) {
+        case cls::rbd::SNAPSHOT_NAMESPACE_TYPE_USER:
+          sn = cls::rbd::UserSnapshotNamespace();
+          break;
+        default:
+          sn = cls::rbd::UnknownSnapshotNamespace();
+          break;
+      }
+      snap.snapshot_namespace = cls::rbd::SnapshotNamespaceOnDisk(sn);
+      snap.name = snap_info.name;
+      snap.image_id = image->id;
+      snap.id = snap_info.id;
+      snap.size = snap_info.size;
+      snap.used = 0;
+      snap.dirty = 0;
+      snap.clone_ids = std::move(children);
+
+      snapshots->insert(std::make_pair(snap.id, snap));
     }
-  }
+  } else if (checkv == v2) {
+    librbdx::image_info_v2_t info;
+    int r = xrbd.get_info_v2(ioctx, id, &info);
+    if (r < 0) {
+      return r;
+    }
 
-  utime_t create_timestamp;
-  r = librbd::cls_client::get_create_timestamp(&ioctx, oid, &create_timestamp);
-  if (r < 0) {
-    std::cerr << __func__ << ": get_create_timestamp: " << oid << " failed: "
-        << cpp_strerror(r) << std::endl;
-    return r;
-  }
+    image->state = cls::rbd::STATUS_IMAGE_STATE_IDLE;
+    if (info.watchers.size()) {
+      image->state = cls::rbd::STATUS_IMAGE_STATE_MAPPED;
+    }
+    image->create_timestamp = info.timestamp;
+    image->parent.pool_id = info.parent.spec.pool_id;
+    image->parent.image_id = info.parent.spec.image_id;
+    image->parent.snapshot_id = info.parent.spec.snap_id;
+    image->data_pool_id = info.data_pool_id;
+    image->name = info.name;
+    image->id = info.id;
+    image->order = info.order;
+    image->stripe_unit = info.stripe_unit;
+    image->stripe_count = info.stripe_count;
+    image->size = info.size;
+    image->used = info.du;
+    image->qos_iops = info.qos.iops;
+    image->qos_bps = info.qos.bps;
+    // reservation and weight are ignored
+    image->qos_reservation = -1;
+    image->qos_weight = -1;
+    image->snapshot_ids.insert(info.snapc.snaps.begin(), info.snapc.snaps.end());
 
-  int64_t data_pool_id = -1;
-  r = librbd::cls_client::get_data_pool(&ioctx, oid, &data_pool_id);
-  if (r < 0) {
-    std::cerr << __func__ << ": get_data_pool: " << oid << " failed: "
-        << cpp_strerror(r) << std::endl;
-    return r;
-  }
+    auto pool_id = ioctx.get_id();
 
-  uint64_t stripe_unit = 0, stripe_count = 0;
-  r = librbd::cls_client::get_stripe_unit_count(&ioctx, oid,
-      &stripe_unit, &stripe_count);
-  if (r < 0 && r != -ENOEXEC) {
-    std::cerr << __func__ << ": get_stripe_unit_count: " << oid << " failed: "
-        << cpp_strerror(r) << std::endl;
-    return r;
-  }
+    for (auto& it: info.snaps) {
+      auto& snap_info = it.second;
 
-  std::string qos_iops_str, qos_bps_str, qos_reservation_str, qos_weight_str;
-  r = librbd::cls_client::metadata_get(&ioctx, oid, QOS_MLMT, &qos_iops_str);
-  if (r < 0 && r != -ENOENT) {
-    std::cerr << __func__ << ": metadata_get: "
-        << oid << "/" << QOS_MLMT << " failed: "
-        << cpp_strerror(r) << std::endl;
-    return r;
-  }
-  r = librbd::cls_client::metadata_get(&ioctx, oid, QOS_MBDW, &qos_bps_str);
-  if (r < 0 && r != -ENOENT) {
-    std::cerr << __func__ << ": metadata_get: "
-        << oid << "/" << QOS_MBDW << " failed: "
-        << cpp_strerror(r) << std::endl;
-    return r;
-  }
-  r = librbd::cls_client::metadata_get(&ioctx, oid, QOS_MRSV, &qos_reservation_str);
-  if (r < 0 && r != -ENOENT) {
-    std::cerr << __func__ << ": metadata_get: "
-        << oid << "/" << QOS_MRSV << " failed: "
-        << cpp_strerror(r) << std::endl;
-    return r;
-  }
-  r = librbd::cls_client::metadata_get(&ioctx, oid, QOS_MWGT, &qos_weight_str);
-  if (r < 0 && r != -ENOENT) {
-    std::cerr << __func__ << ": metadata_get: "
-        << oid << "/" << QOS_MWGT << " failed: "
-        << cpp_strerror(r) << std::endl;
-    return r;
-  }
+      std::set<cls::rbd::StatusCloneId> children;
+      librbd::ParentSpec parent_spec(pool_id, image->id, snap_info.id);
+      r = build_children(ioctx, parent_spec, &children);
+      if (r < 0) {
+        std::cerr << __func__ << ": build_children: "
+            << pool_id << "/" << id << "@" << snap_info.id << " failed: "
+            << cpp_strerror(r) << std::endl;
+        return r;
+      }
 
-  int64_t qos_iops = -1, qos_bps = -1, qos_reservation = -1, qos_weight = -1;
-  if (!qos_iops_str.empty()) {
-    qos_iops = std::stoll(qos_iops_str);
+      cls::rbd::StatusSnapshot snap;
+      snap.create_timestamp = snap_info.timestamp;
+
+      cls::rbd::SnapshotNamespace sn;
+      switch (cls::rbd::SnapshotNamespaceType(snap_info.snap_ns_type)) {
+        case cls::rbd::SNAPSHOT_NAMESPACE_TYPE_USER:
+          sn = cls::rbd::UserSnapshotNamespace();
+          break;
+        default:
+          sn = cls::rbd::UnknownSnapshotNamespace();
+          break;
+      }
+      snap.snapshot_namespace = cls::rbd::SnapshotNamespaceOnDisk(sn);
+      snap.name = snap_info.name;
+      snap.image_id = image->id;
+      snap.id = snap_info.id;
+      snap.size = snap_info.size;
+      snap.used = 0;
+      snap.dirty = 0;
+      snap.clone_ids = std::move(children);
+
+      snapshots->insert(std::make_pair(snap.id, snap));
+    }
+  } else if (checkv == v3 || checkv == v4) {
+    librbdx::image_info_v3_t info;
+    int r = xrbd.get_info_v3(ioctx, id, &info);
+    if (r < 0) {
+      return r;
+    }
+
+    image->state = cls::rbd::STATUS_IMAGE_STATE_IDLE;
+    if (info.watchers.size()) {
+      image->state = cls::rbd::STATUS_IMAGE_STATE_MAPPED;
+    }
+    image->create_timestamp = info.timestamp;
+    image->parent.pool_id = info.parent.spec.pool_id;
+    image->parent.image_id = info.parent.spec.image_id;
+    image->parent.snapshot_id = info.parent.spec.snap_id;
+    image->data_pool_id = info.data_pool_id;
+    image->name = info.name;
+    image->id = info.id;
+    image->order = info.order;
+    image->stripe_unit = info.stripe_unit;
+    image->stripe_count = info.stripe_count;
+    image->size = info.size;
+    image->used = info.du;
+    image->qos_iops = info.qos.iops;
+    image->qos_bps = info.qos.bps;
+    // reservation and weight are ignored
+    image->qos_reservation = -1;
+    image->qos_weight = -1;
+    image->snapshot_ids.insert(info.snapc.snaps.begin(), info.snapc.snaps.end());
+
+    auto pool_id = ioctx.get_id();
+
+    for (auto& it: info.snaps) {
+      auto& snap_info = it.second;
+
+      std::set<cls::rbd::StatusCloneId> children;
+      librbd::ParentSpec parent_spec(pool_id, image->id, snap_info.id);
+      r = build_children(ioctx, parent_spec, &children);
+      if (r < 0) {
+        std::cerr << __func__ << ": build_children: "
+            << pool_id << "/" << id << "@" << snap_info.id << " failed: "
+            << cpp_strerror(r) << std::endl;
+        return r;
+      }
+
+      cls::rbd::StatusSnapshot snap;
+      snap.create_timestamp = snap_info.timestamp;
+
+      cls::rbd::SnapshotNamespace sn;
+      switch (cls::rbd::SnapshotNamespaceType(snap_info.snap_ns_type)) {
+        case cls::rbd::SNAPSHOT_NAMESPACE_TYPE_USER:
+          sn = cls::rbd::UserSnapshotNamespace();
+          break;
+        default:
+          sn = cls::rbd::UnknownSnapshotNamespace();
+          break;
+      }
+      snap.snapshot_namespace = cls::rbd::SnapshotNamespaceOnDisk(sn);
+      snap.name = snap_info.name;
+      snap.image_id = image->id;
+      snap.id = snap_info.id;
+      snap.size = snap_info.size;
+      snap.used = snap_info.du;
+      snap.dirty = snap_info.dirty;     // only checks in v4 and above
+      snap.clone_ids = std::move(children);
+
+      snapshots->insert(std::make_pair(snap.id, snap));
+    }
+  } else {
+    return -EINVAL;
   }
-  if (!qos_bps_str.empty()) {
-    qos_bps = std::stoll(qos_bps_str);
-  }
-  if (!qos_reservation_str.empty()) {
-    qos_reservation = std::stoll(qos_reservation_str);
-  }
-  if (!qos_weight_str.empty()) {
-    qos_weight = std::stoll(qos_weight_str);
-  }
-
-  image->create_timestamp = create_timestamp;
-
-  image->parent.pool_id = parent_info.spec.pool_id;
-  image->parent.image_id = parent_info.spec.image_id;
-  image->parent.snapshot_id = parent_info.spec.snap_id;
-
-  image->size = size;
-  image->order = order;
-  image->data_pool_id = data_pool_id;
-
-  if ((stripe_unit == 1ull << order) && (stripe_count == 1)) {
-    stripe_unit = stripe_count = 0;
-  }
-
-  image->stripe_unit = stripe_unit;
-  image->stripe_count = stripe_count;
-
-  image->qos_iops = qos_iops;
-  image->qos_bps = qos_bps;
-  image->qos_reservation = qos_reservation;
-  image->qos_weight = qos_weight;
-
   return 0;
 }
 
+/*
+ * read image status record
+ */
 int read_status_image(librados::IoCtx &ioctx, const std::string &id,
     cls::rbd::StatusImage *image,
     std::map<uint64_t, cls::rbd::StatusSnapshot> *snapshots) {
@@ -554,169 +600,166 @@ int read_status_image(librados::IoCtx &ioctx, const std::string &id,
   return 0;
 }
 
-int check_status_images(librados::IoCtx &ioctx, bool rebuild) {
-  std::string last_read = STATUS_IMAGE_KEY_PREFIX;
-  int max_read = RBD_MAX_KEYS_READ;
-  bool more = true;
+/*
+ * iterate RBD_STATUS to check each status record
+ *
+ * this function only checks if the image/snapshot the status record
+ * points to does exist, the consistency is checked by
+ * check_directory and check_trash
+ */
+int check_status(librados::IoCtx &ioctx, int checkv, bool rebuild) {
+  // check image records
+  {
+    std::string last_read = STATUS_IMAGE_KEY_PREFIX;
+    int max_read = RBD_MAX_KEYS_READ;
+    bool more = true;
 
-  while (more) {
-    std::map<std::string, bufferlist> vals;
-    int r = ioctx.omap_get_vals2(RBD_STATUS, last_read,
-        STATUS_IMAGE_KEY_PREFIX, max_read,
-        &vals, &more);
-    if (r < 0 && r != -ENOENT) {
-      std::cerr << __func__ << ": omap_get_vals2: "
-          << STATUS_IMAGE_KEY_PREFIX << " failed: "
-          << cpp_strerror(r) << std::endl;
-      return r;
-    }
-
-    if (r == -ENOENT) { // RBD_STATUS does not exist
-      return 0;
-    }
-
-    for (auto &it : vals) {
-      cls::rbd::StatusImage image;
-      bufferlist::iterator iter = it.second.begin();
-      try {
-        ::decode(image, iter);
-      } catch (const buffer::error &err) {
-        return -EIO;
-      }
-
-      std::string id = status_image_from_key(it.first);
-      r = check_image_existent(ioctx, id);
+    while (more) {
+      std::map<std::string, bufferlist> vals;
+      int r = ioctx.omap_get_vals2(RBD_STATUS, last_read,
+          STATUS_IMAGE_KEY_PREFIX, max_read,
+          &vals, &more);
       if (r < 0 && r != -ENOENT) {
-        std::cerr << __func__ << ": check_image_existent: " << id << " failed: "
+        std::cerr << __func__ << ": omap_get_vals2: "
+            << STATUS_IMAGE_KEY_PREFIX << " failed: "
             << cpp_strerror(r) << std::endl;
         return r;
       }
 
-      if (r == -ENOENT) {
-        if (rebuild) {
-          r = remove_key(ioctx, RBD_STATUS, it.first);
-          if (r < 0) {
-            std::cerr << __func__ << ": remove_key: " << RBD_STATUS << "/"
-                << it.first << " failed: "
-                << cpp_strerror(r) << std::endl;
-            return r;
-          }
-        } else {
-          std::cout << "status image: " << id << " is dangling" << std::endl;
+      if (r == -ENOENT) { // RBD_STATUS does not exist
+        return 0;
+      }
+
+      // iterate image records
+      for (auto &it : vals) {
+        cls::rbd::StatusImage image;
+        bufferlist::iterator iter = it.second.begin();
+        try {
+          ::decode(image, iter);
+        } catch (const buffer::error &err) {
+          return -EIO;
         }
 
-        continue;
-      }
-    }
+        std::string id = status_image_from_key(it.first);
+        r = check_image_existent(ioctx, id);
+        if (r < 0 && r != -ENOENT) {
+          std::cerr << __func__ << ": check image existent: " << id << " failed: "
+              << cpp_strerror(r) << std::endl;
+          return r;
+        }
 
-    if (!vals.empty()) {
-      last_read = vals.rbegin()->first;
+        if (r == -ENOENT) {
+          if (rebuild) { // image does not exist, remove it from RBD_STATUS
+            r = remove_key(ioctx, RBD_STATUS, it.first);
+            if (r < 0) {
+              std::cerr << __func__ << ": remove_key: " << RBD_STATUS << "/"
+                  << it.first << " failed: "
+                  << cpp_strerror(r) << std::endl;
+              return r;
+            }
+          } else {
+            std::cout << "status image: " << id << " is dangling" << std::endl;
+          }
+
+          continue;
+        }
+      }
+
+      if (!vals.empty()) {
+        last_read = vals.rbegin()->first;
+      }
     }
   }
-  return 0;
-}
 
-int check_status_snapshots(librados::IoCtx &ioctx, bool rebuild) {
-  std::string last_read = STATUS_SNAPSHOT_KEY_PREFIX;
-  int max_read = RBD_MAX_KEYS_READ;
-  bool more = true;
+  // check snapshot records
+  {
+    std::string last_read = STATUS_SNAPSHOT_KEY_PREFIX;
+    int max_read = RBD_MAX_KEYS_READ;
+    bool more = true;
 
-  while (more) {
-    std::map<std::string, bufferlist> vals;
-    int r = ioctx.omap_get_vals2(RBD_STATUS, last_read,
-        STATUS_SNAPSHOT_KEY_PREFIX, max_read,
-        &vals, &more);
-    if (r < 0 && r != -ENOENT) {
-      std::cerr << __func__ << ": omap_get_vals2: "
-          << STATUS_SNAPSHOT_KEY_PREFIX << " failed: "
-          << cpp_strerror(r) << std::endl;
-      return r;
-    }
-
-    if (r == -ENOENT) { // RBD_STATUS does not exist
-      return 0;
-    }
-
-    for (auto &it : vals) {
-      cls::rbd::StatusSnapshot snapshot;
-      bufferlist::iterator iter = it.second.begin();
-      try {
-        ::decode(snapshot, iter);
-      } catch (const buffer::error &err) {
-        return -EIO;
-      }
-
-      uint64_t snapshot_id = status_snapshot_from_key(it.first);
-      std::string image_id = snapshot.image_id;
-      r = check_snapshot_existent(ioctx, image_id, snapshot_id);
+    while (more) {
+      std::map<std::string, bufferlist> vals;
+      int r = ioctx.omap_get_vals2(RBD_STATUS, last_read,
+          STATUS_SNAPSHOT_KEY_PREFIX, max_read,
+          &vals, &more);
       if (r < 0 && r != -ENOENT) {
-        std::cerr << __func__ << ": check_snapshot_existent: "
-            << image_id << "@" << snapshot_id << " failed: "
+        std::cerr << __func__ << ": omap_get_vals2: "
+            << STATUS_SNAPSHOT_KEY_PREFIX << " failed: "
             << cpp_strerror(r) << std::endl;
         return r;
       }
 
-      if (r == -ENOENT) {
-        if (rebuild) {
-          r = remove_key(ioctx, RBD_STATUS, it.first);
-          if (r < 0) {
-            std::cerr << __func__ << ": remove_key: " << RBD_STATUS << "/"
-                << it.first << " failed: "
-                << cpp_strerror(r) << std::endl;
-            return r;
-          }
-        } else {
-          std::cout << "status snapshot: " << image_id << "@" << snapshot_id
-              << " is dangling" << std::endl;
+      if (r == -ENOENT) { // RBD_STATUS does not exist
+        return 0;
+      }
+
+      // iterate snapshot records
+      for (auto &it : vals) {
+        cls::rbd::StatusSnapshot snapshot;
+        bufferlist::iterator iter = it.second.begin();
+        try {
+          ::decode(snapshot, iter);
+        } catch (const buffer::error &err) {
+          return -EIO;
         }
 
-        continue;
+        uint64_t snapshot_id = status_snapshot_from_key(it.first);
+        std::string image_id = snapshot.image_id;
+        r = check_snapshot_existent(ioctx, image_id, snapshot_id);
+        if (r < 0 && r != -ENOENT) {
+          std::cerr << __func__ << ": check snapshot existent: "
+              << image_id << "@" << snapshot_id << " failed: "
+              << cpp_strerror(r) << std::endl;
+          return r;
+        }
+
+        if (r == -ENOENT) {
+          if (rebuild) { // snapshot does not exist, remove it from RBD_STATUS
+            r = remove_key(ioctx, RBD_STATUS, it.first);
+            if (r < 0) {
+              std::cerr << __func__ << ": remove_key: " << RBD_STATUS << "/"
+                  << it.first << " failed: "
+                  << cpp_strerror(r) << std::endl;
+              return r;
+            }
+          } else {
+            std::cout << "status snapshot: " << image_id << "@" << snapshot_id
+                << " is dangling" << std::endl;
+          }
+
+          continue;
+        }
+      }
+
+      if (!vals.empty()) {
+        last_read = vals.rbegin()->first;
       }
     }
-
-    if (!vals.empty()) {
-      last_read = vals.rbegin()->first;
-    }
   }
   return 0;
 }
 
-int check_status(librados::IoCtx &ioctx, bool rebuild) {
-  // check_existing_status only checks if the image/snapshot exists, the
-  // correctness is checked by check_images and check_trash
-
-  int r = check_status_images(ioctx, rebuild);
-  if (r < 0) {
-    std::cerr << __func__ << ": check_status_images failed: "
-        << cpp_strerror(r) << std::endl;
-    return r;
-  }
-
-  r = check_status_snapshots(ioctx, rebuild);
-  if (r < 0) {
-    std::cerr << __func__ << ": check_status_snapshots failed: "
-        << cpp_strerror(r) << std::endl;
-    return r;
-  }
-  return 0;
-}
-
-int compare_image(cls::rbd::StatusImage &image_new,
+/*
+ * compare two image records to check if there is any differences
+ */
+int compare_status_image(cls::rbd::StatusImage &image_new,
     std::map<uint64_t, cls::rbd::StatusSnapshot> &snapshots_new,
     cls::rbd::StatusImage &image_old,
     std::map<uint64_t, cls::rbd::StatusSnapshot> &snapshots_old,
+    int checkv,
     Formatter *f) {
   std::string id = image_new.id;
   bool inconsistent = false;
 
-  uint64_t state_new, state_old;
-  state_new = image_new.state & cls::rbd::STATUS_IMAGE_STATE_TRASH;
-  state_old = image_old.state & cls::rbd::STATUS_IMAGE_STATE_TRASH;
-  if (state_new != state_old) {
+  if (image_new.state != image_old.state) {
     inconsistent = true;
   } else
 
-  // ignore create_timestamp
+  // ignore create_timestamp, since the timestamps recorded in rbd_header
+  // and RBD_STATUS are different
+//  if (image_new.create_timestamp != image_old.create_timestamp) {
+//    inconsistent = true;
+//  } else
 
   if (image_new.parent.pool_id != image_old.parent.pool_id
       || image_new.parent.image_id != image_old.parent.image_id
@@ -752,7 +795,11 @@ int compare_image(cls::rbd::StatusImage &image_new,
     inconsistent = true;
   } else
 
-  // ignore used
+  if (image_new.used != image_old.used) {
+    if (checkv >= v2) { // check image head du
+      inconsistent = true;
+    }
+  } else
 
   if (image_new.qos_iops != image_old.qos_iops) {
     inconsistent = true;
@@ -762,13 +809,14 @@ int compare_image(cls::rbd::StatusImage &image_new,
     inconsistent = true;
   } else
 
-  if (image_new.qos_reservation != image_old.qos_reservation) {
-    inconsistent = true;
-  } else
-
-  if (image_new.qos_weight != image_old.qos_weight) {
-    inconsistent = true;
-  } else
+  // ignore reservation and weight
+//  if (image_new.qos_reservation != image_old.qos_reservation) {
+//    inconsistent = true;
+//  } else
+//
+//  if (image_new.qos_weight != image_old.qos_weight) {
+//    inconsistent = true;
+//  } else
 
   if (image_new.snapshot_ids != image_old.snapshot_ids) {
     inconsistent = true;
@@ -787,7 +835,12 @@ int compare_image(cls::rbd::StatusImage &image_new,
     const cls::rbd::StatusSnapshot &snapshot_new = it->second;
     const cls::rbd::StatusSnapshot &snapshot_old = snapshots_old[snapshot_id];
 
-    // ignore create_timestamp
+    // ignore create_timestamp, since the timestamps recorded in rbd_header
+    // and RBD_STATUS are different
+//    if (snapshot_new.create_timestamp != snapshot_old.create_timestamp) {
+//      it++;
+//      continue;
+//    }
 
     if (!(snapshot_new.snapshot_namespace == snapshot_old.snapshot_namespace)) {
       it++;
@@ -814,9 +867,19 @@ int compare_image(cls::rbd::StatusImage &image_new,
       continue;
     }
 
-    // ignore used
+    if (snapshot_new.used != snapshot_old.used) {
+      if (checkv >= v3) { // check snapshot du
+        it++;
+        continue;
+      }
+    }
 
-    // ignore dirty
+    if (snapshot_new.dirty != snapshot_old.dirty) {
+      if (checkv >= v4) { // check snapshot dirty
+        it++;
+        continue;
+      }
+    }
 
     if (snapshot_new.clone_ids != snapshot_old.clone_ids) {
       it++;
@@ -849,6 +912,7 @@ int compare_image(cls::rbd::StatusImage &image_new,
     }
 
     f->open_array_section("snapshots");
+
     for (auto &it : snapshots_new) {
       auto snapshot_id = it.first;
       ostringstream oss;
@@ -859,13 +923,14 @@ int compare_image(cls::rbd::StatusImage &image_new,
 
       auto old_it = snapshots_old.find(snapshot_id);
       if (old_it == snapshots_old.end()) {
-        f->dump_string(snapshot_str.c_str(), "no status");
+        f->dump_string(snapshot_str.c_str(), "snapshot status record does not exist");
       } else {
         f->open_object_section(snapshot_str.c_str());
 
         f->open_object_section("new");
         it.second.dump2(f);
         f->close_section();
+
         f->open_object_section("old");
         old_it->second.dump2(f);
         f->close_section();
@@ -873,9 +938,10 @@ int compare_image(cls::rbd::StatusImage &image_new,
         f->close_section();
       }
 
-      f->close_section();
+      f->close_section(); // snapshot
     }
-    f->close_section();
+
+    f->close_section(); // snapshots
   }
 
   if (inconsistent || snapshots_inconsistent) {
@@ -885,7 +951,7 @@ int compare_image(cls::rbd::StatusImage &image_new,
   return 0;
 }
 
-int write_image(librados::IoCtx &ioctx, const std::string &oid,
+int write_status_image(librados::IoCtx &ioctx, const std::string &oid,
     cls::rbd::StatusImage &image,
     std::map<uint64_t, cls::rbd::StatusSnapshot> &snapshots) {
   std::map<std::string, bufferlist> vals;
@@ -916,7 +982,10 @@ int write_image(librados::IoCtx &ioctx, const std::string &oid,
   return 0;
 }
 
-int check_image(librados::IoCtx &ioctx, std::string id, bool rebuild) {
+/*
+ * check status record of a single image
+ */
+int check_image(librados::IoCtx &ioctx, std::string id, int checkv, bool rebuild) {
   std::string dir_key = dir_key_for_id(id);
   std::string name;
   int r = read_key(ioctx, RBD_DIRECTORY, dir_key, &name);
@@ -941,6 +1010,7 @@ int check_image(librados::IoCtx &ioctx, std::string id, bool rebuild) {
     return -ESTALE;
   }
 
+  // image to check does not exist
   if (r == -ENOENT && r2 == -ENOENT) {
     return -ENOENT;
   }
@@ -952,14 +1022,14 @@ int check_image(librados::IoCtx &ioctx, std::string id, bool rebuild) {
 
   std::string image_name = name;
   uint64_t state = 0;
-  if (r == -ENOENT) {
+  if (r == -ENOENT) { // image in trash
     image_name = trash_spec.name;
     state = cls::rbd::STATUS_IMAGE_STATE_TRASH;
   }
 
   cls::rbd::StatusImage image_new;
   std::map<uint64_t, cls::rbd::StatusSnapshot> snapshots_new;
-  r = build_status_image(ioctx, id, &image_new, &snapshots_new);
+  r = build_status_image(ioctx, id, checkv, &image_new, &snapshots_new);
   if (r < 0) {
     std::cerr << __func__ << ": build_status_image: " << id << " failed: "
         << cpp_strerror(r) << std::endl;
@@ -981,19 +1051,21 @@ int check_image(librados::IoCtx &ioctx, std::string id, bool rebuild) {
 
   if (r != -ENOENT) {
     // compare
-    r = compare_image(image_new, snapshots_new, image_old, snapshots_old,
+    r = compare_status_image(image_new, snapshots_new,
+        image_old, snapshots_old,
+        checkv,
         formatter.get());
   } else {
-    formatter->dump_string(id.c_str(), "no status");
+    formatter->dump_string(id.c_str(), "status record does not exist");
   }
 
   if (r != 0) {
     inconsistent = true;
 
     if (rebuild) {
-      r = write_image(ioctx, RBD_STATUS, image_new, snapshots_new);
+      r = write_status_image(ioctx, RBD_STATUS, image_new, snapshots_new);
       if (r < 0) {
-        std::cerr << __func__ << ": write_image: " << id << " failed: "
+        std::cerr << __func__ << ": write_status_image: " << id << " failed: "
             << cpp_strerror(r) << std::endl;
         return r;
       }
@@ -1009,7 +1081,10 @@ int check_image(librados::IoCtx &ioctx, std::string id, bool rebuild) {
   return 0;
 }
 
-int check_directory(librados::IoCtx &ioctx, bool rebuild) {
+/*
+ * iterate RBD_DIRECTORY to check each image
+ */
+int check_directory(librados::IoCtx &ioctx, int checkv, bool rebuild) {
   int r, ret = 0;
   std::string last_read = RBD_DIR_ID_KEY_PREFIX;
   int max_read = RBD_MAX_KEYS_READ;
@@ -1049,7 +1124,7 @@ int check_directory(librados::IoCtx &ioctx, bool rebuild) {
 
       cls::rbd::StatusImage image_new;
       std::map<uint64_t, cls::rbd::StatusSnapshot> snapshots_new;
-      r = build_status_image(ioctx, id, &image_new, &snapshots_new);
+      r = build_status_image(ioctx, id, checkv, &image_new, &snapshots_new);
       if (r < 0) {
         std::cerr << __func__ << ": build_status_image: " << id << " failed: "
             << cpp_strerror(r) << std::endl;
@@ -1076,19 +1151,21 @@ int check_directory(librados::IoCtx &ioctx, bool rebuild) {
 
       if (r != -ENOENT) {
         // compare
-        r = compare_image(image_new, snapshots_new, image_old, snapshots_old,
+        r = compare_status_image(image_new, snapshots_new,
+            image_old, snapshots_old,
+            checkv,
             formatter.get());
       } else {
-        formatter->dump_string(id.c_str(), "no status");
+        formatter->dump_string(id.c_str(), "status record does not exist");
       }
 
       if (r != 0) {
         inconsistent = true;
 
         if (rebuild) {
-          r = write_image(ioctx, RBD_STATUS, image_new, snapshots_new);
+          r = write_status_image(ioctx, RBD_STATUS, image_new, snapshots_new);
           if (r < 0) {
-            std::cerr << __func__ << ": write_image: " << id << " failed: "
+            std::cerr << __func__ << ": write_status_image: " << id << " failed: "
                 << cpp_strerror(r) << std::endl;
             if (!ret) {
               ret = r;
@@ -1113,7 +1190,10 @@ int check_directory(librados::IoCtx &ioctx, bool rebuild) {
   return ret;
 }
 
-int check_trash(librados::IoCtx &ioctx, bool rebuild) {
+/*
+ * iterate RBD_TRASH to check each image
+ */
+int check_trash(librados::IoCtx &ioctx, int checkv, bool rebuild) {
   int r, ret = 0;
   std::string last_read = TRASH_IMAGE_KEY_PREFIX;
   int max_read = RBD_MAX_KEYS_READ;
@@ -1153,7 +1233,7 @@ int check_trash(librados::IoCtx &ioctx, bool rebuild) {
 
       cls::rbd::StatusImage image_new;
       std::map<uint64_t, cls::rbd::StatusSnapshot> snapshots_new;
-      r = build_status_image(ioctx, id, &image_new, &snapshots_new);
+      r = build_status_image(ioctx, id, checkv, &image_new, &snapshots_new);
       if (r < 0) {
         std::cerr << __func__ << ": build_status_image: " << id << " failed: "
             << cpp_strerror(r) << std::endl;
@@ -1180,19 +1260,21 @@ int check_trash(librados::IoCtx &ioctx, bool rebuild) {
 
       if (r != -ENOENT) {
         // compare
-        r = compare_image(image_new, snapshots_new, image_old, snapshots_old,
+        r = compare_status_image(image_new, snapshots_new,
+            image_old, snapshots_old,
+            checkv,
             formatter.get());
       } else {
-        formatter->dump_string(id.c_str(), "no status");
+        formatter->dump_string(id.c_str(), "status record does not exist");
       }
 
       if (r != 0) {
         inconsistent = true;
 
         if (rebuild) {
-          r = write_image(ioctx, RBD_STATUS, image_new, snapshots_new);
+          r = write_status_image(ioctx, RBD_STATUS, image_new, snapshots_new);
           if (r < 0) {
-            std::cerr << __func__ << ": write_image: " << id << " failed: "
+            std::cerr << __func__ << ": write_status_image: " << id << " failed: "
                 << cpp_strerror(r) << std::endl;
             if (!ret) {
               ret = r;
@@ -1231,7 +1313,7 @@ int execute_check(const po::variables_map &vm) {
       vm, at::ARGUMENT_MODIFIER_NONE, arg_index);
 
   if (!image_id.empty() && has_image_spec) {
-    std::cerr << "rbd: trying to check image status using both name and id. "
+    std::cerr << "rbd: trying to check image status record using both name and id. "
               << std::endl;
     return -EINVAL;
   }
@@ -1254,25 +1336,64 @@ int execute_check(const po::variables_map &vm) {
     return r;
   }
 
-  bool all = false;
-  bool status = vm["check-status"].as<bool>();
-  bool directory = vm["check-directory"].as<bool>();
-  bool trash = vm["check-trash"].as<bool>();
+  bool check_v1 = vm["v1"].as<bool>();
+  bool check_v2 = vm["v2"].as<bool>();
+  bool check_v3 = vm["v3"].as<bool>();
+  bool check_v4 = vm["v4"].as<bool>();
   bool rebuild = vm["rebuild"].as<bool>();
-  bool from_scratch = vm["from-scratch"].as<bool>();
+  bool purge = vm["purge"].as<bool>();
 
-  if (!status && !directory && !trash) {
-    all = true;
+  int checkv = 0;
+  if (check_v1) {
+    checkv = v1;
+  }
+  if (check_v2) {
+    checkv = v2;
+  }
+  if (check_v3) {
+    checkv = v3;
+  }
+  if (check_v4) {
+    checkv = v4;
+  }
+
+  // no action
+  if (!checkv && !purge) {
+    std::cerr << "rbd: either '--v1/--v2/--v3' with optionally '--rebuild' "
+                 "or '--purge' should be specified"
+              << std::endl;
+    return -EINVAL;
+  }
+
+  // w/o check, rebuild
+  if (!checkv && rebuild) {
+    std::cerr << "rbd: '--rebuild' should be used with '--v1/--v2/--v3'"
+              << std::endl;
+    return -EINVAL;
+  }
+
+  // check, w/o rebuild, purge
+  if (checkv && !rebuild && purge) {
+    std::cerr << "rbd: '--purge' should be used alone or used with '--rebuild'"
+              << std::endl;
+    return -EINVAL;
   }
 
   librados::Rados rados;
   librados::IoCtx ioctx;
-  r = utils::init(pool_name, &rados, &ioctx);
-  if (r < 0) {
-    return r;
-  }
 
   if (!image_name.empty() || !image_id.empty()) {
+    if (purge) {
+      std::cerr << "rbd: purge status records is not allowed for a single image. "
+                << std::endl;
+      return -EINVAL;
+    }
+
+    r = utils::init(pool_name, &rados, &ioctx);
+    if (r < 0) {
+      return r;
+    }
+
     std::string id = image_id;
     if (!image_name.empty()) {
       std::string oid = id_obj_name(image_name);
@@ -1282,16 +1403,34 @@ int execute_check(const po::variables_map &vm) {
       }
     }
 
-    r = check_image(ioctx, id, rebuild);
+    r = check_image(ioctx, id, checkv, rebuild);
     if (r < 0) {
       std::cerr << __func__ << ": check_image: " << id << " failed: "
           << cpp_strerror(r) << std::endl;
+      return r;
     }
+
+    if (rebuild) { // always increase the version for convenient
+      librbd::RBD rbd;
+
+      r = rbd.status_inc_version(ioctx, 1);
+      if (r < 0) {
+        std::cerr << __func__ << ": status_inc_version failed: "
+            << cpp_strerror(r) << std::endl;
+        return r;
+      }
+    }
+
+    return 0;
+  }
+
+  r = utils::init(pool_name, &rados, &ioctx);
+  if (r < 0) {
     return r;
   }
 
   uint64_t version = 0;
-  if (rebuild && from_scratch) {
+  if (purge) { // purge omap entries, i.e., status records, on RBD_STATUS
     librbd::RBD rbd;
     r = rbd.status_get_version(ioctx, &version);
     if (r < 0 && r != -ENOENT) {
@@ -1306,44 +1445,43 @@ int execute_check(const po::variables_map &vm) {
           << cpp_strerror(r) << std::endl;
       return r;
     }
+
+    // purge only
+    if (!checkv) {
+      return 0;
+    }
   }
 
   int ret = 0;
-  if (all || status) {
-    r = check_status(ioctx, rebuild);
-    if (r < 0) {
-      std::cerr << __func__ << ": check_status failed: "
-          << cpp_strerror(r) << std::endl;
+  r = check_status(ioctx, checkv, rebuild);
+  if (r < 0) {
+    std::cerr << __func__ << ": check_status failed: "
+        << cpp_strerror(r) << std::endl;
+    ret = r;
+  }
+
+  r = check_directory(ioctx, checkv, rebuild);
+  if (r < 0) {
+    std::cerr << __func__ << ": check_directory failed: "
+        << cpp_strerror(r) << std::endl;
+    if (!ret) {
       ret = r;
     }
   }
 
-  if (all || directory) {
-    r = check_directory(ioctx, rebuild);
-    if (r < 0) {
-      std::cerr << __func__ << ": check_directory failed: "
-          << cpp_strerror(r) << std::endl;
-      if (!ret) {
-        ret = r;
-      }
-    }
-  }
-
-  if (all || trash) {
-    r = check_trash(ioctx, rebuild);
-    if (r < 0) {
-      std::cerr << __func__ << ": check_trash failed: "
-          << cpp_strerror(r) << std::endl;
-      if (!ret) {
-        ret = r;
-      }
+  r = check_trash(ioctx, checkv, rebuild);
+  if (r < 0) {
+    std::cerr << __func__ << ": check_trash failed: "
+        << cpp_strerror(r) << std::endl;
+    if (!ret) {
+      ret = r;
     }
   }
 
   if (rebuild) { // always increase the version for convenient
     librbd::RBD rbd;
 
-    version++;
+    version++;  // should be 1 or version before purge
     r = rbd.status_inc_version(ioctx, version);
     if (r < 0) {
       std::cerr << __func__ << ": status_inc_version failed: "
@@ -1358,7 +1496,7 @@ int execute_check(const po::variables_map &vm) {
 }
 
 Shell::Action action_check(
-    {"status-check"}, {}, "Check status and rebuild optionally.", "",
+    {"status-check"}, {}, "Check, rebuild or purge status records.", "",
     &get_check_arguments, &execute_check);
 
 } // namespace status_builder

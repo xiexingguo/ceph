@@ -2184,6 +2184,21 @@ namespace librbd {
       return 0;
     }
 
+    int status_set_version(librados::IoCtx *ioctx, const std::string &oid,
+        uint64_t version)
+    {
+      bufferlist in_bl;
+      ::encode(version, in_bl);
+      librados::ObjectWriteOperation op;
+      op.exec("rbd", "status_set_version", in_bl);
+
+      int r = ioctx->operate(oid, &op);
+      if (r < 0) {
+        return r;
+      }
+      return 0;
+    }
+
     int status_list_images(librados::IoCtx *ioctx, const std::string &oid,
         const std::string &start, uint64_t max_return,
         std::vector<cls::rbd::StatusImage> *statuses)
@@ -2403,6 +2418,54 @@ namespace librbd {
       ::encode(reservation, bl);
       ::encode(weight, bl);
       op->exec("rbd", "status_update_qos", bl);
+    }
+
+    int status_get_image(librados::IoCtx *ioctx, const std::string &oid,
+        const std::string &id, cls::rbd::StatusImage *image)
+    {
+      bufferlist in_bl;
+      ::encode(id, in_bl);
+      librados::ObjectReadOperation op;
+      op.exec("rbd", "status_get_image", in_bl);
+
+      bufferlist out_bl;
+      int r = ioctx->operate(oid, &op, &out_bl);
+      if (r < 0) {
+        return r;
+      }
+
+      try {
+        bufferlist::iterator iter = out_bl.begin();
+        ::decode(*image, iter);
+      } catch (const buffer::error &err) {
+        return -EBADMSG;
+      }
+      return 0;
+    }
+
+    int status_get_snapshot(librados::IoCtx *ioctx, const std::string &oid,
+        const std::string &id, uint64_t snapshot_id,
+        cls::rbd::StatusSnapshot *snap)
+    {
+      bufferlist in_bl;
+      ::encode(id, in_bl);
+      ::encode(snapshot_id, in_bl);
+      librados::ObjectReadOperation op;
+      op.exec("rbd", "status_get_snapshot", in_bl);
+
+      bufferlist out_bl;
+      int r = ioctx->operate(oid, &op, &out_bl);
+      if (r < 0) {
+        return r;
+      }
+
+      try {
+        bufferlist::iterator iter = out_bl.begin();
+        ::decode(*snap, iter);
+      } catch (const buffer::error &err) {
+        return -EBADMSG;
+      }
+      return 0;
     }
 
     int status_get_usage(librados::IoCtx *ioctx, const std::string &oid,

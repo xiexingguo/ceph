@@ -82,8 +82,9 @@ int do_list(std::string &pool_name, Formatter *f) {
 
         f->dump_int("qos_iops", it.qos_iops);
         f->dump_int("qos_bps", it.qos_bps);
-        f->dump_int("qos_reservation", it.qos_reservation);
-        f->dump_int("qos_weight", it.qos_weight);
+        // both reservation and weight are ignored
+//        f->dump_int("qos_reservation", it.qos_reservation);
+//        f->dump_int("qos_weight", it.qos_weight);
 
         if (!it.snapshot_ids.empty()) {
           f->open_array_section("snapshots");
@@ -132,7 +133,7 @@ int execute(const po::variables_map &vm) {
 }
 
 Shell::Action action(
-  {"list-images"}, {}, "List rbd images.", "", &get_arguments, &execute);
+  {"status-list-images"}, {}, "List rbd images.", "", &get_arguments, &execute);
 
 } // namespace status_list_images
 } // namespace action

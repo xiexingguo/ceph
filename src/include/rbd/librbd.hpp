@@ -140,8 +140,8 @@ namespace librbd {
     uint64_t used;
     int64_t qos_iops;
     int64_t qos_bps;
-    int64_t qos_reservation;
-    int64_t qos_weight;
+    int64_t qos_reservation;    // deprecated
+    int64_t qos_weight;         // deprecated
     std::vector<uint64_t> snapshot_ids;
   } status_image_t;
 
@@ -239,6 +239,7 @@ public:
 
   int status_get_version(IoCtx &io_ctx, uint64_t *version);
   int status_inc_version(IoCtx &io_ctx, uint64_t version);
+  int status_set_version(IoCtx &io_ctx, uint64_t version);
   int status_list_images(IoCtx &io_ctx, const std::string &start, size_t max,
       std::vector<status_image_t> *images);
   int status_list_snapshots(IoCtx &io_ctx, uint64_t start, size_t max,
@@ -520,6 +521,8 @@ public:
   int qos_spec_del();
 
   void notify_update();
+  int status_get_image(status_image_t *image);
+  int status_get_snapshot(status_snapshot_t *snap);
   int status_get_usage(status_usage_t *usage);
   void disable_status_update();
 

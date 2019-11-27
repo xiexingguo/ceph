@@ -191,6 +191,21 @@ int Image<I>::status_inc_version(librados::IoCtx &io_ctx, uint64_t version) {
 }
 
 template <typename I>
+int Image<I>::status_set_version(librados::IoCtx &io_ctx, uint64_t version) {
+  CephContext *cct = (CephContext *)io_ctx.cct();
+  ldout(cct, 20) << "status_set_version io_ctx=" << &io_ctx << dendl;
+
+  int r = cls_client::status_set_version(&io_ctx, RBD_STATUS, version);
+  if (r < 0 && r != -ENOENT) {
+    lderr(cct) << "error set status version: "
+               << cpp_strerror(r) << dendl;
+    return r;
+  }
+
+  return 0;
+}
+
+template <typename I>
 int Image<I>::status_list_images(librados::IoCtx &io_ctx,
     const std::string &start, size_t max,
     std::vector<status_image_t> *images) {
@@ -387,6 +402,84 @@ int Image<I>::status_list_usages(librados::IoCtx &io_ctx,
 }
 
 template <typename I>
+int Image<I>::status_get_image(I *ictx, status_image_t *image) {
+  CephContext *cct = ictx->cct;
+  ldout(cct, 20) << "status_get_image image_ctx=" << ictx << dendl;
+
+  cls::rbd::StatusImage clsImage;
+  int r = cls_client::status_get_image(&ictx->md_ctx, RBD_STATUS,
+      ictx->id, &clsImage);
+  if (r < 0) {
+    lderr(cct) << "error getting status image: "
+               << cpp_strerror(r) << dendl;
+    return r;
+  }
+
+  image->state = clsImage.state;
+  image->create_timestamp = clsImage.create_timestamp;
+  image->parent.pool_id = clsImage.parent.pool_id;
+  image->parent.image_id = clsImage.parent.image_id;
+  image->parent.snapshot_id = static_cast<uint64_t>(clsImage.parent.snapshot_id);
+  image->data_pool_id = clsImage.data_pool_id;
+  image->name = clsImage.name;
+  image->id = clsImage.id;
+  image->order = clsImage.order;
+  image->stripe_unit = clsImage.stripe_unit;
+  image->stripe_count = clsImage.stripe_count;
+  image->size = clsImage.size;
+  image->used = clsImage.used;
+  image->qos_iops = clsImage.qos_iops;
+  image->qos_bps = clsImage.qos_bps;
+  image->qos_reservation = clsImage.qos_reservation;
+  image->qos_weight = clsImage.qos_weight;
+  for (auto &snap_it : clsImage.snapshot_ids) {
+    image->snapshot_ids.push_back(snap_it);
+  }
+
+  return 0;
+}
+
+template <typename I>
+int Image<I>::status_get_snapshot(I *ictx, status_snapshot_t *snap) {
+  CephContext *cct = ictx->cct;
+  ldout(cct, 20) << "status_get_snapshot image_ctx=" << ictx << dendl;
+
+  uint64_t snapshot_id;
+  {
+    RWLock::RLocker snap_locker(ictx->snap_lock);
+    snapshot_id = ictx->snap_id;
+  }
+
+  cls::rbd::StatusSnapshot clsSnapshot;
+  int r = cls_client::status_get_snapshot(&ictx->md_ctx, RBD_STATUS,
+      ictx->id, snapshot_id, &clsSnapshot);
+  if (r < 0) {
+    lderr(cct) << "error getting status snapshot: "
+               << cpp_strerror(r) << dendl;
+    return r;
+  }
+
+  snap->create_timestamp = clsSnapshot.create_timestamp;
+  snap->namespace_type = static_cast<status_snapshot_namespace_type_t>(
+      clsSnapshot.snapshot_namespace.get_namespace_type());
+  snap->name = clsSnapshot.name;
+  snap->image_id = clsSnapshot.image_id;
+  snap->id = clsSnapshot.id;
+  snap->size = clsSnapshot.size;
+  snap->used = clsSnapshot.used;
+  snap->dirty = clsSnapshot.dirty;
+  for (auto &clone_it : clsSnapshot.clone_ids) {
+    status_clone_id_t clone;
+    clone.pool_id = clone_it.pool_id;
+    clone.image_id = clone_it.image_id;
+
+    snap->clone_ids.push_back(clone);
+  }
+
+  return 0;
+}
+
+template <typename I>
 int Image<I>::status_get_usage(I *ictx, status_usage_t *usage) {
   CephContext *cct = ictx->cct;
   ldout(cct, 20) << "status_get_usage image_ctx=" << ictx << dendl;
@@ -401,13 +494,13 @@ int Image<I>::status_get_usage(I *ictx, status_usage_t *usage) {
   int r = cls_client::status_get_usage(&ictx->md_ctx, RBD_STATUS,
       ictx->id, snapshot_id, &clsUsage);
   if (r < 0) {
-    lderr(cct) << "error getting image usage: "
+    lderr(cct) << "error getting status usage: "
                << cpp_strerror(r) << dendl;
     return r;
   }
 
   usage->state = clsUsage.state;
-  usage->id.clear();
+  usage->id = ictx->id;
   usage->size = clsUsage.size;
   usage->used = clsUsage.used;
 

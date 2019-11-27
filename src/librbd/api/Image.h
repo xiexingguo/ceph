@@ -37,6 +37,8 @@ struct Image {
 
   static int status_get_version(librados::IoCtx &io_ctx, uint64_t *version);
   static int status_inc_version(librados::IoCtx &io_ctx, uint64_t version);
+  static int status_set_version(librados::IoCtx &io_ctx, uint64_t version);
+
   static int status_list_images(librados::IoCtx &io_ctx,
       const std::string &start, size_t max,
       std::vector<status_image_t> *statuses);
@@ -46,8 +48,10 @@ struct Image {
   static int status_list_usages(librados::IoCtx &io_ctx,
       const std::string &start, size_t max,
       std::vector<status_usage_t> *usages);
-  static int status_get_usage(ImageCtxT *ictx,
-      status_usage_t *usage);
+
+  static int status_get_image(ImageCtxT *ictx, status_image_t *image);
+  static int status_get_snapshot(ImageCtxT *ictx, status_snapshot_t *snap);
+  static int status_get_usage(ImageCtxT *ictx, status_usage_t *usage);
 
 };
 

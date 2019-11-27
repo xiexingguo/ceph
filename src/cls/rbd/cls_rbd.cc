@@ -5276,6 +5276,32 @@ int status_inc_version(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   return 0;
 }
 
+int status_set_version(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  uint64_t version = 0;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(version, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  std::map<std::string, bufferlist> vals;
+
+  bufferlist version_bl;
+  ::encode(version, version_bl);
+
+  vals[STATUS_VERSION_KEY] = version_bl;
+
+  int r = cls_cxx_map_set_vals(hctx, &vals);
+  if (r < 0) {
+    CLS_ERR("error set status version: %s", cpp_strerror(r).c_str());
+    return r;
+  }
+
+  return 0;
+}
+
 int status_list_images(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
   std::string start_after;
@@ -5322,7 +5348,7 @@ int status_list_images(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       }
 
       // update state
-      if (latest > image.last_update) {
+      if (latest > image.last_update && !image.last_update.is_zero()) {
         image.state &= ~cls::rbd::STATUS_IMAGE_STATE_MASK;
         image.state |= cls::rbd::STATUS_IMAGE_STATE_IDLE;
       }
@@ -5461,7 +5487,7 @@ int status_list_usages(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
           image.name.c_str());
 
       // update state
-      if (latest > image.last_update) {
+      if (latest > image.last_update && !image.last_update.is_zero()) {
         image.state &= ~cls::rbd::STATUS_IMAGE_STATE_MASK;
         image.state |= cls::rbd::STATUS_IMAGE_STATE_IDLE;
       }
@@ -6299,6 +6325,52 @@ int status_update_qos(cls_method_context_t hctx, bufferlist *in, bufferlist *out
   return 0;
 }
 
+int status_get_image(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  std::string id;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(id, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  // return the recorded status, do not update `state` based on
+  // the `last_update`
+  std::string image_key = status_key_for_image(id);
+  cls::rbd::StatusImage image;
+  int r = read_key(hctx, image_key, &image);
+  if (r < 0) {
+    return r;
+  }
+
+  ::encode(image, *out);
+  return 0;
+}
+
+int status_get_snapshot(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  std::string id;
+  uint64_t snapshot_id;
+  try {
+    bufferlist::iterator iter = in->begin();
+    ::decode(id, iter);
+    ::decode(snapshot_id, iter);
+  } catch (const buffer::error &err) {
+    return -EINVAL;
+  }
+
+  std::string snapshot_key = status_key_for_snapshot(snapshot_id);
+  cls::rbd::StatusSnapshot snapshot;
+  int r = read_key(hctx, snapshot_key, &snapshot);
+  if (r < 0) {
+    return r;
+  }
+
+  ::encode(snapshot, *out);
+  return 0;
+}
+
 int status_get_usage(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
   std::string id;
@@ -6336,7 +6408,7 @@ int status_get_usage(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     }
 
     usage.state = image.state;
-    usage.id.clear();
+    usage.id = id;
     usage.size = image.size;
     usage.used = image.used;
   } else {
@@ -6347,8 +6419,8 @@ int status_get_usage(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
       return r;
     }
 
-    usage.state = 0;
-    usage.id.clear();
+    usage.state = snapshot.dirty; // no state for snapshot
+    usage.id = id;
     usage.size = snapshot.size;
     usage.used = snapshot.used;
   }
@@ -6840,6 +6912,7 @@ CLS_INIT(rbd)
 
   cls_method_handle_t h_status_get_version;
   cls_method_handle_t h_status_inc_version;
+  cls_method_handle_t h_status_set_version;
   cls_method_handle_t h_status_list_images;
   cls_method_handle_t h_status_list_snapshots;
   cls_method_handle_t h_status_list_usages;
@@ -6856,6 +6929,8 @@ CLS_INIT(rbd)
   cls_method_handle_t h_status_remove_snapshot;
   cls_method_handle_t h_status_rename_snapshot;
   cls_method_handle_t h_status_update_qos;
+  cls_method_handle_t h_status_get_image;
+  cls_method_handle_t h_status_get_snapshot;
   cls_method_handle_t h_status_get_usage;
 
   cls_method_handle_t h_x_size_get;
@@ -7154,6 +7229,9 @@ CLS_INIT(rbd)
   cls_register_cxx_method(h_class, "status_inc_version",
       CLS_METHOD_RD | CLS_METHOD_WR,
       status_inc_version, &h_status_inc_version);
+  cls_register_cxx_method(h_class, "status_set_version",
+      CLS_METHOD_RD | CLS_METHOD_WR,
+      status_set_version, &h_status_set_version);
   cls_register_cxx_method(h_class, "status_list_images",
       CLS_METHOD_RD,
       status_list_images, &h_status_list_images);
@@ -7202,6 +7280,12 @@ CLS_INIT(rbd)
   cls_register_cxx_method(h_class, "status_update_qos",
       CLS_METHOD_RD | CLS_METHOD_WR,
       status_update_qos, &h_status_update_qos);
+  cls_register_cxx_method(h_class, "status_get_image",
+      CLS_METHOD_RD,
+      status_get_image, &h_status_get_image);
+  cls_register_cxx_method(h_class, "status_get_snapshot",
+      CLS_METHOD_RD,
+      status_get_snapshot, &h_status_get_snapshot);
   cls_register_cxx_method(h_class, "status_get_usage",
       CLS_METHOD_RD,
       status_get_usage, &h_status_get_usage);

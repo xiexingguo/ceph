@@ -43,7 +43,7 @@ int do_list(std::string &pool_name, Formatter *f) {
       if (f) {
         f->open_object_section("usage");
 
-        f->dump_unsigned("state", it.state);
+        f->dump_int("data_pool_id", it.state); // used as data pool id here
         f->dump_string("id", it.id);
         f->dump_unsigned("size", it.size);
         f->dump_unsigned("used", it.used);
@@ -85,7 +85,7 @@ int execute(const po::variables_map &vm) {
 }
 
 Shell::Action action(
-  {"list-usages"}, {}, "List rbd usages.", "", &get_arguments, &execute);
+  {"status-list-usages"}, {}, "List rbd usages.", "", &get_arguments, &execute);
 
 } // namespace status_list_usages
 } // namespace action

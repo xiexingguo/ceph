@@ -410,6 +410,8 @@ TYPE(cls_rbd_snap)
 #include "cls/rbd/cls_rbd_types.h"
 TYPE(cls::rbd::MirrorPeer)
 TYPE(cls::rbd::MirrorImage)
+TYPE(cls::rbd::StatusSnapshot)
+TYPE(cls::rbd::StatusImage)
 #endif
 
 #include "cls/lock/cls_lock_types.h"
