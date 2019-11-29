@@ -4688,7 +4688,7 @@ std::vector<Option> get_global_options() {
     .set_description("frequency(in seconds) we try to make changes to each osd's bandwidth available for recovery/backfill activities. 0 means no adjustment will be taken at all."),
 
     Option("mgr_recovery_balancer_min_objects", Option::TYPE_INT, Option::LEVEL_ADVANCED)
-    .set_default(50)
+    .set_default(5)
     .set_description("for single osd, enable adjustment unless there are at least these many objects to recover"),
 
     Option("mgr_recovery_balancer_min_backfills_factor", Option::TYPE_FLOAT, Option::LEVEL_ADVANCED)
