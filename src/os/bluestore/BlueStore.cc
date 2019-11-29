@@ -6966,94 +6966,17 @@ int BlueStore::read(
   return r;
 }
 
-// --------------------------------------------------------
-// intermediate data structures used while reading
-struct region_t {
-  uint64_t logical_offset;
-  uint64_t blob_xoffset;   //region offset within the blob
-  uint64_t length;
-  bufferlist bl;
-
-  // used later in read process
-  uint64_t front = 0;
-  uint64_t r_off = 0;
-
-  region_t(uint64_t offset, uint64_t b_offs, uint64_t len)
-    : logical_offset(offset),
-    blob_xoffset(b_offs),
-    length(len){}
-  region_t(const region_t& from)
-    : logical_offset(from.logical_offset),
-    blob_xoffset(from.blob_xoffset),
-    length(from.length){}
-
-  friend ostream& operator<<(ostream& out, const region_t& r) {
-    return out << "0x" << std::hex << r.logical_offset << ":"
-      << r.blob_xoffset << "~" << r.length << std::dec;
-  }
-};
-
-typedef list<region_t> regions2read_t;
-typedef map<BlueStore::BlobRef, regions2read_t> blobs2read_t;
-
-int BlueStore::_do_read(
-  Collection *c,
+void BlueStore::_read_cache(
   OnodeRef o,
   uint64_t offset,
   size_t length,
-  bufferlist& bl,
-  uint32_t op_flags,
-  uint64_t retry_count)
+  int read_cache_policy,
+  ready_regions_t& ready_regions,
+  blobs2read_t& blobs2read)
 {
-  FUNCTRACE();
-  int r = 0;
-  int read_cache_policy = 0; // do not bypass clean or dirty cache
-
-  dout(20) << __func__ << " 0x" << std::hex << offset << "~" << length
-           << " size 0x" << o->onode.size << " (" << std::dec
-           << o->onode.size << ")" << dendl;
-  bl.clear();
-
-  if (offset >= o->onode.size) {
-    return r;
-  }
-
-  // generally, don't buffer anything, unless the client explicitly requests
-  // it.
-  bool buffered = false;
-  if (op_flags & CEPH_OSD_OP_FLAG_FADVISE_WILLNEED) {
-    dout(20) << __func__ << " will do buffered read" << dendl;
-    buffered = true;
-  } else if (cct->_conf->bluestore_default_buffered_read &&
-	     (op_flags & (CEPH_OSD_OP_FLAG_FADVISE_DONTNEED |
-			  CEPH_OSD_OP_FLAG_FADVISE_NOCACHE)) == 0) {
-    dout(20) << __func__ << " defaulting to buffered read" << dendl;
-    buffered = true;
-  }
-
-  if (offset + length > o->onode.size) {
-    length = o->onode.size - offset;
-  }
-
-  utime_t start = ceph_clock_now();
-  o->extent_map.fault_range(db, offset, length);
-  logger->tinc(l_bluestore_read_onode_meta_lat, ceph_clock_now() - start);
-  _dump_onode(cct, *o, 30);
-
-  ready_regions_t ready_regions;
-
-  // for deep-scrub, we only read dirty cache and bypass clean cache in
-  // order to read underlying block device in case there are silent disk errors.
-  if (op_flags & CEPH_OSD_OP_FLAG_BYPASS_CLEAN_CACHE) {
-    dout(20) << __func__ << " will bypass cache and do direct read" << dendl;
-    read_cache_policy = BufferSpace::BYPASS_CLEAN_CACHE;
-  }
-
   // build blob-wise list to of stuff read (that isn't cached)
-  blobs2read_t blobs2read;
   unsigned left = length;
   uint64_t pos = offset;
-  unsigned num_regions = 0;
   auto lp = o->extent_map.seek_lextent(offset);
   while (left > 0 && lp != o->extent_map.extent_map.end()) {
     if (pos < lp->logical_offset) {
@@ -7100,7 +7023,6 @@ int BlueStore::_do_read(
 	dout(30) << __func__ << "    will read 0x" << std::hex << pos << ": 0x"
 		 << b_off << "~" << l << std::dec << dendl;
 	blobs2read[bptr].emplace_back(region_t(pos, b_off, l));
-	++num_regions;
       }
       pos += l;
       b_off += l;
@@ -7109,35 +7031,29 @@ int BlueStore::_do_read(
     }
     ++lp;
   }
+}
 
-  // read raw blob data.  use aio if we have >1 blobs to read.
-  start = ceph_clock_now(); // for the sake of simplicity 
-                                    // measure the whole block below.
-                                    // The error isn't that much...
-  vector<bufferlist> compressed_blob_bls;
-  IOContext ioc(cct, NULL, true); // allow EIO
+int BlueStore::_prepare_read_ioc(
+  blobs2read_t& blobs2read,
+  vector<bufferlist>* compressed_blob_bls,
+  IOContext* ioc)
+{
   for (auto& p : blobs2read) {
     const BlobRef& bptr = p.first;
     dout(20) << __func__ << "  blob " << *bptr << std::hex
 	     << " need " << p.second << std::dec << dendl;
     if (bptr->get_blob().is_compressed()) {
       // read the whole thing
-      if (compressed_blob_bls.empty()) {
+      if (compressed_blob_bls->empty()) {
 	// ensure we avoid any reallocation on subsequent blobs
-	compressed_blob_bls.reserve(blobs2read.size());
+	compressed_blob_bls->reserve(blobs2read.size());
       }
-      compressed_blob_bls.push_back(bufferlist());
-      bufferlist& bl = compressed_blob_bls.back();
-      r = bptr->get_blob().map(
+      compressed_blob_bls->push_back(bufferlist());
+      bufferlist& bl = compressed_blob_bls->back();
+      auto r = bptr->get_blob().map(
 	0, bptr->get_blob().get_ondisk_length(),
 	[&](uint64_t offset, uint64_t length) {
-	  int r;
-	  // use aio if there are more regions to read than those in this blob
-	  if (num_regions > p.second.size()) {
-	    r = bdev->aio_read(offset, length, &bl, &ioc);
-	  } else {
-	    r = bdev->read(offset, length, &bl, &ioc, false);
-	  }
+	  int r = bdev->aio_read(offset, length, &bl, ioc);
 	  if (r < 0)
             return r;
           return 0;
@@ -7173,16 +7089,10 @@ int BlueStore::_do_read(
 		 << dendl;
 
 	// read it
-	r = bptr->get_blob().map(
+	auto r = bptr->get_blob().map(
 	  reg.r_off, r_len,
 	  [&](uint64_t offset, uint64_t length) {
-	    int r;
-	    // use aio if there is more than one region to read
-	    if (num_regions > 1) {
-	      r = bdev->aio_read(offset, length, &reg.bl, &ioc);
-	    } else {
-	      r = bdev->read(offset, length, &reg.bl, &ioc, false);
-	    }
+	    int r = bdev->aio_read(offset, length, &reg.bl, ioc);
 	    if (r < 0)
               return r;
             return 0;
@@ -7200,18 +7110,20 @@ int BlueStore::_do_read(
       }
     }
   }
-  if (ioc.has_pending_aios()) {
-    bdev->aio_submit(&ioc);
-    dout(20) << __func__ << " waiting for aio" << dendl;
-    ioc.aio_wait();
-    r = ioc.get_return_value();
-    if (r < 0) {
-      assert(r == -EIO); // no other errors allowed
-      return -EIO;
-    }
-  }
-  logger->tinc(l_bluestore_read_wait_aio_lat, ceph_clock_now() - start);
+  return 0;
+}
 
+int BlueStore::_generate_read_result_bl(
+  OnodeRef o,
+  uint64_t offset,
+  size_t length,
+  ready_regions_t& ready_regions,
+  vector<bufferlist>& compressed_blob_bls,
+  blobs2read_t& blobs2read,
+  bool buffered,
+  bool* csum_error,
+  bufferlist& bl)
+{
   // enumerate and decompress desired blobs
   auto p = compressed_blob_bls.begin();
   blobs2read_t::iterator b2r_it = blobs2read.begin();
@@ -7224,17 +7136,11 @@ int BlueStore::_do_read(
       bufferlist& compressed_bl = *p++;
       if (_verify_csum(o, &bptr->get_blob(), 0, compressed_bl,
 		       b2r_it->second.front().logical_offset) < 0) {
-        // Handles spurious read errors caused by a kernel bug.
-        // We sometimes get all-zero pages as a result of the read under
-        // high memory pressure. Retrying the failing read succeeds in most cases.
-        // See also: http://tracker.ceph.com/issues/22464
-        if (retry_count >= cct->_conf->bluestore_retry_disk_reads) {
-          return -EIO;
-        }
-        return _do_read(c, o, offset, length, bl, op_flags, retry_count + 1);
+        *csum_error = true;
+        return -EIO;
       }
       bufferlist raw_bl;
-      r = _decompress(compressed_bl, &raw_bl);
+      auto r = _decompress(compressed_bl, &raw_bl);
       if (r < 0)
 	return r;
       if (buffered) {
@@ -7249,14 +7155,8 @@ int BlueStore::_do_read(
       for (auto& reg : b2r_it->second) {
 	if (_verify_csum(o, &bptr->get_blob(), reg.r_off, reg.bl,
 			 reg.logical_offset) < 0) {
-          // Handles spurious read errors caused by a kernel bug.
-          // We sometimes get all-zero pages as a result of the read under
-          // high memory pressure. Retrying the failing read succeeds in most cases.
-          // See also: http://tracker.ceph.com/issues/22464
-          if (retry_count >= cct->_conf->bluestore_retry_disk_reads) {
-            return -EIO;
-          }
-          return _do_read(c, o, offset, length, bl, op_flags, retry_count + 1);
+          *csum_error = true;
+          return -EIO;
 	}
 	if (buffered) {
 	  bptr->shared_blob->bc.did_read(bptr->shared_blob->get_cache(),
@@ -7274,7 +7174,7 @@ int BlueStore::_do_read(
   // generate a resulting buffer
   auto pr = ready_regions.begin();
   auto pr_end = ready_regions.end();
-  pos = 0;
+  uint64_t pos = 0;
   while (pos < length) {
     if (pr != pr_end && pr->first == pos + offset) {
       dout(30) << __func__ << " assemble 0x" << std::hex << pos
@@ -7299,6 +7199,102 @@ int BlueStore::_do_read(
   assert(bl.length() == length);
   assert(pos == length);
   assert(pr == pr_end);
+  return 0;
+}
+
+int BlueStore::_do_read(
+  Collection *c,
+  OnodeRef o,
+  uint64_t offset,
+  size_t length,
+  bufferlist& bl,
+  uint32_t op_flags,
+  uint64_t retry_count)
+{
+  FUNCTRACE();
+  int r = 0;
+  int read_cache_policy = 0; // do not bypass clean or dirty cache
+
+  dout(20) << __func__ << " 0x" << std::hex << offset << "~" << length
+           << " size 0x" << o->onode.size << " (" << std::dec
+           << o->onode.size << ")" << dendl;
+  bl.clear();
+
+  if (offset >= o->onode.size) {
+    return r;
+  }
+
+  // generally, don't buffer anything, unless the client explicitly requests
+  // it.
+  bool buffered = false;
+  if (op_flags & CEPH_OSD_OP_FLAG_FADVISE_WILLNEED) {
+    dout(20) << __func__ << " will do buffered read" << dendl;
+    buffered = true;
+  } else if (cct->_conf->bluestore_default_buffered_read &&
+             (op_flags & (CEPH_OSD_OP_FLAG_FADVISE_DONTNEED |
+                          CEPH_OSD_OP_FLAG_FADVISE_NOCACHE)) == 0) {
+    dout(20) << __func__ << " defaulting to buffered read" << dendl;
+    buffered = true;
+  }
+
+  if (offset + length > o->onode.size) {
+    length = o->onode.size - offset;
+  }
+
+  utime_t start = ceph_clock_now();
+  o->extent_map.fault_range(db, offset, length);
+  logger->tinc(l_bluestore_read_onode_meta_lat, ceph_clock_now() - start);
+  _dump_onode(cct, *o, 30);
+
+  // for deep-scrub, we only read dirty cache and bypass clean cache in
+  // order to read underlying block device in case there are silent disk errors.
+  if (op_flags & CEPH_OSD_OP_FLAG_BYPASS_CLEAN_CACHE) {
+    dout(20) << __func__ << " will bypass cache and do direct read" << dendl;
+    read_cache_policy = BufferSpace::BYPASS_CLEAN_CACHE;
+  }
+
+  // build blob-wise list to of stuff read (that isn't cached)
+  ready_regions_t ready_regions;
+  blobs2read_t blobs2read;
+  _read_cache(o, offset, length, read_cache_policy, ready_regions, blobs2read);
+
+  // read raw blob data.  use aio if we have >1 blobs to read.
+  start = ceph_clock_now(); // for the sake of simplicity 
+                                    // measure the whole block below.
+                                    // The error isn't that much...
+  vector<bufferlist> compressed_blob_bls;
+  IOContext ioc(cct, NULL, true); // allow EIO
+  r = _prepare_read_ioc(blobs2read, &compressed_blob_bls, &ioc);
+  // we always issue aio for reading, so errors other than EIO are not allowed
+  if (r < 0)
+    return r;
+  if (ioc.has_pending_aios()) {
+    bdev->aio_submit(&ioc);
+    dout(20) << __func__ << " waiting for aio" << dendl;
+    ioc.aio_wait();
+    r = ioc.get_return_value();
+    if (r < 0) {
+      assert(r == -EIO); // no other errors allowed
+      return -EIO;
+    }
+  }
+  logger->tinc(l_bluestore_read_wait_aio_lat, ceph_clock_now() - start);
+
+  bool csum_error = false;
+  r = _generate_read_result_bl(o, offset, length, ready_regions,
+                              compressed_blob_bls, blobs2read,
+                              buffered, &csum_error, bl);
+  if (csum_error) {
+    // Handles spurious read errors caused by a kernel bug.
+    // We sometimes get all-zero pages as a result of the read under
+    // high memory pressure. Retrying the failing read succeeds in most 
+    // cases.
+    // See also: http://tracker.ceph.com/issues/22464
+    if (retry_count >= cct->_conf->bluestore_retry_disk_reads) {
+      return -EIO;
+    }
+    return _do_read(c, o, offset, length, bl, op_flags, retry_count + 1);
+  }
   r = bl.length();
   if (retry_count) {
     logger->inc(l_bluestore_reads_with_retries);
