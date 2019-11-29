@@ -4692,7 +4692,7 @@ std::vector<Option> get_global_options() {
     .set_description("for single osd, enable adjustment unless there are at least these many objects to recover"),
 
     Option("mgr_recovery_balancer_min_backfills_factor", Option::TYPE_FLOAT, Option::LEVEL_ADVANCED)
-    .set_default(2)
+    .set_default(50)
     .set_description("osd_max_backfills factor for recovery"),
 
     Option("mgr_recovery_balancer_max_backfills_factor", Option::TYPE_FLOAT, Option::LEVEL_ADVANCED)
