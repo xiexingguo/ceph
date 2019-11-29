@@ -2457,6 +2457,14 @@ typedef map<BlueStore::BlobRef, regions2read_t> blobs2read_t;
     uint32_t op_flags = 0,
     uint64_t retry_count = 0);
 
+  int _do_readv(
+    Collection *c,
+    OnodeRef o,
+    const interval_set<uint64_t>& m,
+    bufferlist& bl,
+    uint32_t op_flags = 0,
+    uint64_t retry_count = 0);
+
   int _fiemap(CollectionHandle &c_, const ghobject_t& oid,
  	     uint64_t offset, size_t len, interval_set<uint64_t>& destset);
 public:
@@ -2469,6 +2477,12 @@ public:
   int fiemap(CollectionHandle &c, const ghobject_t& oid,
 	     uint64_t offset, size_t len, map<uint64_t, uint64_t>& destmap) override;
 
+  int readv(
+    CollectionHandle &c_,
+    const ghobject_t& oid,
+    interval_set<uint64_t>& m,
+    bufferlist& bl,
+    uint32_t op_flags) override;
 
   int getattr(const coll_t& cid, const ghobject_t& oid, const char *name,
 	      bufferptr& value) override;
