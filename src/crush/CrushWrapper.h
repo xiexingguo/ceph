@@ -187,7 +187,7 @@ public:
   void set_tunables_jewel() {
     crush->choose_local_tries = 0;
     crush->choose_local_fallback_tries = 0;
-    crush->choose_total_tries = 50;
+    crush->choose_total_tries = 150;
     crush->chooseleaf_descend_once = 1;
     crush->chooseleaf_vary_r = 1;
     crush->chooseleaf_stable = 1;
@@ -314,7 +314,8 @@ public:
     return
       crush->choose_local_tries == 0 &&
       crush->choose_local_fallback_tries == 0 &&
-      crush->choose_total_tries == 50 &&
+      (crush->choose_total_tries == 50 ||
+       crush->choose_total_tries == 150) &&
       crush->chooseleaf_descend_once == 1 &&
       crush->chooseleaf_vary_r == 1 &&
       crush->chooseleaf_stable == 1 &&
