@@ -906,7 +906,7 @@ std::vector<Option> get_global_options() {
     .set_description(""),
 
     Option("mon_cpu_threads", Option::TYPE_INT, Option::LEVEL_ADVANCED)
-    .set_default(4)
+    .set_default(8)
     .set_description(""),
 
     Option("mon_osd_mapping_pgs_per_chunk", Option::TYPE_INT, Option::LEVEL_ADVANCED)
