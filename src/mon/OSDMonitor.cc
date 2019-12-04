@@ -11082,17 +11082,6 @@ bool OSDMonitor::prepare_command_impl(MonOpRequestRef op,
       goto reply;
     }
 
-    if (expected_num_objects == 0 &&
-	cct->_conf->osd_objectstore == "filestore" &&
-	cct->_conf->filestore_merge_threshold < 0) {
-      int osds = osdmap.get_num_osds();
-      if (osds && (pg_num >= 1024 || pg_num / osds >= 100)) {
-        ss << "For better initial performance on pools expected to store a "
-	   << "large number of objects, consider supplying the "
-	   << "expected_num_objects parameter when creating the pool.\n";
-      }
-    }
-
     int64_t fast_read_param;
     cmd_getval_throws(g_ceph_context, cmdmap, "fast_read", fast_read_param, int64_t(-1));
     FastReadType fast_read = FAST_READ_DEFAULT;
@@ -11126,6 +11115,18 @@ bool OSDMonitor::prepare_command_impl(MonOpRequestRef op,
     } else {
       ss << "pool '" << poolstr << "' created";
     }
+
+    if (expected_num_objects == 0 &&
+	cct->_conf->osd_objectstore == "filestore" &&
+	cct->_conf->filestore_merge_threshold < 0) {
+      int osds = osdmap.get_num_osds();
+      if (osds && (pg_num >= 1024 || pg_num / osds >= 100)) {
+        ss << " WARNING: For better initial performance on pools expected to store a "
+	   << "large number of objects, consider supplying the "
+	   << "expected_num_objects parameter when creating the pool.\n";
+      }
+    }
+
     getline(ss, rs);
     wait_for_finished_proposal(op, new Monitor::C_Command(mon, op, 0, rs,
 					      get_last_committed() + 1));
