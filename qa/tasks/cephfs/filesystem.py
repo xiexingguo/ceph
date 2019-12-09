@@ -707,7 +707,8 @@ class Filesystem(MDSCluster):
         """
         status = self.get_mds_map()
         result = []
-        for mds_status in sorted(status['info'].values(), lambda a, b: cmp(a['rank'], b['rank'])):
+        for mds_status in sorted(status['info'].values(),
+                                 key=lambda _: _['rank']):
             if mds_status['state'] == state or state is None:
                 result.append(mds_status['name'])
 
@@ -725,7 +726,8 @@ class Filesystem(MDSCluster):
     def get_all_mds_rank(self):
         status = self.get_mds_map()
         result = []
-        for mds_status in sorted(status['info'].values(), lambda a, b: cmp(a['rank'], b['rank'])):
+        for mds_status in sorted(status['info'].values(),
+                                 key=lambda _: _['rank']):
             if mds_status['rank'] != -1 and mds_status['state'] != 'up:standby-replay':
                 result.append(mds_status['rank'])
 
@@ -750,7 +752,8 @@ class Filesystem(MDSCluster):
         """
         status = self.get_mds_map()
         result = []
-        for mds_status in sorted(status['info'].values(), lambda a, b: cmp(a['rank'], b['rank'])):
+        for mds_status in sorted(status['info'].values(),
+                                 key=lambda _: _['rank']):
             if mds_status['rank'] != -1 and mds_status['state'] != 'up:standby-replay':
                 result.append(mds_status['name'])
 
