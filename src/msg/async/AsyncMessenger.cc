@@ -165,6 +165,7 @@ void Processor::accept()
   opts.nodelay = msgr->cct->_conf->ms_tcp_nodelay;
   opts.rcbuf_size = msgr->cct->_conf->ms_tcp_rcvbuf;
   opts.priority = msgr->get_socket_priority();
+  opts.tcp_user_timeout = msgr->cct->_conf->ms_tcp_timeout;
   unsigned accept_error_num = 0;
 
   while (true) {

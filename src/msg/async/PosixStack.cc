@@ -204,6 +204,11 @@ int PosixServerSocketImpl::accept(ConnectedSocket *sock, const SocketOptions &op
     ::close(sd);
     return -errno;
   }
+  r = handler.set_socket_timeout(sd, opt.tcp_user_timeout, 0);
+  if (r < 0) {
+    ::close(sd);
+    return r;
+  }
 
   assert(NULL != out); //out should not be NULL in accept connection
 
