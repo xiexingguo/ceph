@@ -294,7 +294,7 @@ class Module(MgrModule):
             "perm": "r",
         },
     ]
-    active = False
+    active = True
     run = True
     plans = {}
     mode = ''
@@ -340,7 +340,7 @@ class Module(MgrModule):
             return (0, '', '')
         elif command['prefix'] == 'balancer off':
             if self.active:
-                self.set_config('active', '')
+                self.set_config('active', '0')
                 self.active = False
             self.event.set()
             return (0, '', '')
@@ -546,9 +546,9 @@ class Module(MgrModule):
     def serve(self):
         self.log.info('Starting')
         while self.run:
-            osdmap = self.get_osdmap()
-            self.auto_balance_empty_pools(osdmap)
-            self.active = self.get_config('active', '') is not ''
+            active = self.get_config('active', '')
+            if active is not '':
+                self.active = active == '1'
             sleep_interval = float(self.get_config('sleep_interval',
                                                    default_sleep_interval))
             self.log.debug('Waking up [%s, now %s]',
@@ -556,6 +556,8 @@ class Module(MgrModule):
                            time.strftime(TIME_FORMAT, time.localtime()))
             if self.active and self.time_permit():
                 self.log.debug('Running')
+                osdmap = self.get_osdmap()
+                self.auto_balance_empty_pools(osdmap)
                 name = 'auto_%s' % time.strftime(TIME_FORMAT, time.gmtime())
                 plan = self.plan_create(name, osdmap, [])
                 self.optimizing = True
@@ -905,6 +907,8 @@ class Module(MgrModule):
                         num_pg_active_clean += s['count']
                         break
             available = max_optimizations - (num_pg - num_pg_active_clean)
+            if opt_multiplier > 1:
+                available = max_optimizations
             did = plan.osdmap.calc_pg_upmaps(inc, max_deviation, available, it)
             self.log.info('prepared %d changes for pool(s) %s' % (did, it))
             total_did += did
