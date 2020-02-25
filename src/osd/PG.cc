@@ -1774,7 +1774,8 @@ void PG::choose_async_recovery_replicated(const map<pg_shard_t, pg_info_t> &all_
  */
 bool PG::choose_acting(pg_shard_t &auth_log_shard_id,
 		       bool restrict_to_up_acting,
-		       bool *history_les_bound)
+		       bool *history_les_bound,
+		       bool request_pg_temp_change_only)
 {
   map<pg_shard_t, pg_info_t> all_info(peer_info.begin(), peer_info.end());
   all_info[pg_whoami] = info;
@@ -1910,6 +1911,8 @@ bool PG::choose_acting(pg_shard_t &auth_log_shard_id,
       osd->queue_want_pg_temp(info.pgid.pgid, want);
     return false;
   }
+  if (request_pg_temp_change_only)
+    return true;
   want_acting.clear();
   acting_recovery_backfill = want_acting_backfill;
   dout(10) << "acting_recovery_backfill is " << acting_recovery_backfill << dendl;
@@ -8208,6 +8211,16 @@ boost::statechart::result PG::RecoveryState::Active::react(const MNotifyRec& not
       notevt.from, notevt.notify.info, notevt.notify.epoch_sent);
     if (pg->have_unfound() || (pg->is_degraded() && pg->might_have_unfound.count(notevt.from))) {
       pg->discover_all_missing(*context< RecoveryMachine >().get_query_map());
+    }
+    // check if it is a previous down acting member that's coming back.
+    // if so, request pg_temp change to trigger a new interval transition
+    pg_shard_t auth_log_shard;
+    bool history_les_bound = false;
+    pg->choose_acting(auth_log_shard, false, &history_les_bound, true);
+    if (!pg->want_acting.empty() && pg->want_acting != pg->acting) {
+      ldout(pg->cct, 10) << "Active: got notify from previous acting member "
+                         << notevt.from << " , requesting pg_temp change"
+                         << dendl;
     }
   }
   return discard_event();

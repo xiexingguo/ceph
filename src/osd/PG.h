@@ -1272,7 +1272,8 @@ public:
   bool recoverable_and_ge_min_size(const vector<int> &want);
   bool choose_acting(pg_shard_t &auth_log_shard,
 		     bool restrict_to_up_acting,
-		     bool *history_les_bound);
+		     bool *history_les_bound,
+		     bool request_pg_temp_change_only = false);
   void build_might_have_unfound();
   void activate(
     ObjectStore::Transaction& t,
