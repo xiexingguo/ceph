@@ -29,7 +29,7 @@
   # begin crush map
   tunable choose_local_tries 0
   tunable choose_local_fallback_tries 0
-  tunable choose_total_tries 50
+  tunable choose_total_tries 150
   tunable chooseleaf_descend_once 1
   tunable chooseleaf_vary_r 1
   tunable allowed_bucket_algs 54
