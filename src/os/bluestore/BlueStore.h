@@ -1837,8 +1837,8 @@ public:
     void dump(Formatter *f);
   };
 
-  struct IoPatternAnalyzer {
-    uint64_t defer_aggressive_bytes = 0;
+  struct IoPatternPredicator {
+    uint64_t sequential_io_proposed_bytes = 0;
     uint64_t defer_aggressive_batch_ops = 0;
     struct IoMeter {
       uint64_t last_end = 0;
@@ -1871,32 +1871,32 @@ public:
         return contiguous_bytes;
       }
     };
-    map<spg_t, IoMeter> io_meter;
-    std::mutex lock;
+    map<spg_t, IoMeter> write_meter;
+    std::mutex wlock;
 
-    explicit IoPatternAnalyzer(uint64_t defer_aggressive_bytes,
+    explicit IoPatternPredicator(uint64_t sequential_io_proposed_bytes,
                                uint64_t defer_aggressive_batch_ops)
-      : defer_aggressive_bytes(defer_aggressive_bytes),
+      : sequential_io_proposed_bytes(sequential_io_proposed_bytes),
         defer_aggressive_batch_ops(defer_aggressive_batch_ops){}
 
-    bool maybe_contiguous(const spg_t &pg,
+    bool write_maybe_contiguous(const spg_t &pg,
                           uint64_t offset,
                           uint64_t length,
                           uint64_t *new_deferred_batch_ops) {
-      std::unique_lock<std::mutex> l(lock);
-      auto it = io_meter.find(pg);
-      if (it == io_meter.end()) {
+      std::unique_lock<std::mutex> wl(wlock);
+      auto it = write_meter.find(pg);
+      if (it == write_meter.end()) {
         // first object of this pg
         // assume IO pattern will be sequential but do no adjustment
-        io_meter[pg] = IoMeter(offset, length);
+        write_meter[pg] = IoMeter(offset, length);
         return true;
       }
       if (it->second.maybe_contiguous(offset, length)) {
         // check if we need to switch to a more aggressive defer mode
         auto cbytes = it->second.get_contiguous_bytes();
-        if (cbytes >= defer_aggressive_bytes) {
+        if (cbytes >= sequential_io_proposed_bytes) {
           *new_deferred_batch_ops = defer_aggressive_batch_ops;
-        } else if (cbytes >= defer_aggressive_bytes / 2) {
+        } else if (cbytes >= sequential_io_proposed_bytes / 2) {
           // smooth out latency a bit
           *new_deferred_batch_ops = defer_aggressive_batch_ops / 2;
         }
@@ -1906,10 +1906,10 @@ public:
       }
     }
     void handle_conf_change(
-      uint64_t new_defer_aggressive_bytes,
+      uint64_t new_sequential_io_proposed_bytes,
       uint64_t new_defer_aggressive_batch_ops) {
-      std::unique_lock<std::mutex> l(lock);
-      defer_aggressive_bytes = new_defer_aggressive_bytes;
+      std::unique_lock<std::mutex> wl(wlock);
+      sequential_io_proposed_bytes = new_sequential_io_proposed_bytes;
       defer_aggressive_batch_ops = new_defer_aggressive_batch_ops;
     }
   };
@@ -1958,7 +1958,7 @@ private:
   int deferred_queue_size = 0;         ///< num txc's queued across all osrs
   atomic_int deferred_aggressive = {0}; ///< aggressive wakeup of kv thread
   Finisher deferred_finisher;
-  IoPatternAnalyzer io_pattern_analyzer;
+  IoPatternPredicator io_pattern_pedicator;
 
   int m_finisher_num = 1;
   vector<Finisher*> finishers;

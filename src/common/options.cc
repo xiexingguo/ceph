@@ -3977,10 +3977,10 @@ std::vector<Option> get_global_options() {
     .set_safe()
     .set_description("Default bluestore_deferred_batch_ops for non-rotational (solid state) media"),
 
-    Option("bluestore_defer_aggressive_bytes", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    Option("bluestore_sequential_io_proposed_bytes", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(131072)
     .set_safe()
-    .set_description("Max aggregated bytes we switch to aggressive defer mode"),
+    .set_description("The total contiguous io bytes we proposed is sequential"),
 
     Option("bluestore_defer_aggressive_batch_ops", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(256)

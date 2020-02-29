@@ -1135,6 +1135,8 @@ OPTION(bluestore_throttle_cost_per_io, OPT_U64)
 OPTION(bluestore_deferred_batch_ops, OPT_U64)
 OPTION(bluestore_deferred_batch_ops_hdd, OPT_U64)
 OPTION(bluestore_deferred_batch_ops_ssd, OPT_U64)
+OPTION(bluestore_sequential_io_proposed_bytes, OPT_U64)
+OPTION(bluestore_defer_aggressive_batch_ops, OPT_U64)
 OPTION(bluestore_nid_prealloc, OPT_INT)
 OPTION(bluestore_blobid_prealloc, OPT_U64)
 OPTION(bluestore_clone_cow, OPT_BOOL)  // do copy-on-write for clones

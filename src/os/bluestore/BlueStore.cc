@@ -3789,8 +3789,8 @@ BlueStore::BlueStore(CephContext *cct, const string& path)
 		       cct->_conf->bluestore_throttle_bytes +
 		       cct->_conf->bluestore_throttle_deferred_bytes),
     deferred_finisher(cct, "defered_finisher", "dfin"),
-    io_pattern_analyzer(
-      cct->_conf->get_val<uint64_t>("bluestore_defer_aggressive_bytes"),
+    io_pattern_pedicator(
+      cct->_conf->get_val<uint64_t>("bluestore_sequential_io_proposed_bytes"),
       cct->_conf->get_val<uint64_t>("bluestore_defer_aggressive_batch_ops")),
     kv_sync_thread(this),
     kv_finalize_thread(this),
@@ -3811,8 +3811,8 @@ BlueStore::BlueStore(CephContext *cct,
 		       cct->_conf->bluestore_throttle_bytes +
 		       cct->_conf->bluestore_throttle_deferred_bytes),
     deferred_finisher(cct, "defered_finisher", "dfin"),
-    io_pattern_analyzer(
-      cct->_conf->get_val<uint64_t>("bluestore_defer_aggressive_bytes"),
+    io_pattern_pedicator(
+      cct->_conf->get_val<uint64_t>("bluestore_sequential_io_proposed_bytes"),
       cct->_conf->get_val<uint64_t>("bluestore_defer_aggressive_batch_ops")),
     kv_sync_thread(this),
     kv_finalize_thread(this),
@@ -3873,6 +3873,8 @@ const char **BlueStore::get_tracked_conf_keys() const
     "bluestore_max_blob_size",
     "bluestore_max_blob_size_ssd",
     "bluestore_max_blob_size_hdd",
+    "bluestore_sequential_io_proposed_bytes",
+    "bluestore_defer_aggressive_batch_ops",
     NULL
   };
   return KEYS;
@@ -3906,15 +3908,16 @@ void BlueStore::handle_conf_change(const struct md_config_t *conf,
       changed.count("bluestore_max_alloc_size") ||
       changed.count("bluestore_deferred_batch_ops") ||
       changed.count("bluestore_deferred_batch_ops_hdd") ||
-      changed.count("bluestore_deferred_batch_ops_ssd") ||
-      changed.count("bluestore_defer_aggressive_bytes") ||
-      changed.count("bluestore_defer_aggressive_batch_ops")) {
+      changed.count("bluestore_deferred_batch_ops_ssd")) {
     if (bdev) {
       // only after startup
       _set_alloc_sizes();
     }
-    io_pattern_analyzer.handle_conf_change(
-      cct->_conf->get_val<uint64_t>("bluestore_defer_aggressive_bytes"),
+  }
+  if (changed.count("bluestore_sequential_io_proposed_bytes") ||
+      changed.count("bluestore_defer_aggressive_batch_ops")) {
+    io_pattern_pedicator.handle_conf_change(
+      cct->_conf->get_val<uint64_t>("bluestore_sequential_io_proposed_bytes"),
       cct->_conf->get_val<uint64_t>("bluestore_defer_aggressive_batch_ops"));
   }
   if (changed.count("bluestore_throttle_cost_per_io") ||
@@ -10238,9 +10241,9 @@ void BlueStore::_do_write_small(
   spg_t pgid;
 
   if (c->cid.is_pg(&pgid)) {
-    if (io_pattern_analyzer.maybe_contiguous(pgid, offset, length,
+    if (io_pattern_pedicator.write_maybe_contiguous(pgid, offset, length,
         &new_deferred_batch_ops)) {
-      if (new_deferred_batch_ops > deferred_batch_ops) {
+      if (new_deferred_batch_ops > (uint64_t)deferred_batch_ops) {
         dout(10) << __func__ << " io pattern appears to be sequential,"
                  << " will use aggressive deferred_batch_ops = "
                  << new_deferred_batch_ops
