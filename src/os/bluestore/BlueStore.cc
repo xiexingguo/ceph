@@ -3799,6 +3799,7 @@ BlueStore::BlueStore(CephContext *cct, const string& path)
   _init_logger();
   cct->_conf->add_observer(this);
   set_cache_shards(1);
+  skip_zero_write = cct->_conf->bluestore_skip_zero_write;
 }
 
 BlueStore::BlueStore(CephContext *cct,
@@ -3823,6 +3824,7 @@ BlueStore::BlueStore(CephContext *cct,
   _init_logger();
   cct->_conf->add_observer(this);
   set_cache_shards(1);
+  skip_zero_write = cct->_conf->bluestore_skip_zero_write;
 }
 
 BlueStore::~BlueStore()
@@ -3875,6 +3877,7 @@ const char **BlueStore::get_tracked_conf_keys() const
     "bluestore_max_blob_size_hdd",
     "bluestore_sequential_io_proposed_bytes",
     "bluestore_defer_aggressive_batch_ops",
+    "bluestore_skip_zero_write",
     NULL
   };
   return KEYS;
@@ -3935,6 +3938,9 @@ void BlueStore::handle_conf_change(const struct md_config_t *conf,
   if (changed.count("bluestore_throttle_deferred_bytes")) {
     throttle_deferred_bytes.reset_max(
       conf->bluestore_throttle_bytes + conf->bluestore_throttle_deferred_bytes);
+  }
+  if (changed.count("bluestore_skip_zero_write")) {
+    skip_zero_write = conf->bluestore_skip_zero_write;
   }
 }
 
@@ -9933,7 +9939,11 @@ void BlueStore::_txc_add_transaction(TransContext *txc, Transaction *t)
 	uint32_t fadvise_flags = i.get_fadvise_flags();
         bufferlist bl;
         i.decode_bl(bl);
-	r = _write(txc, c, o, off, len, bl, fadvise_flags);
+        if (skip_zero_write && bl.is_zero()) {
+          r = _zero(txc, c, o, off, len);
+        } else {
+          r = _write(txc, c, o, off, len, bl, fadvise_flags);
+        }
       }
       break;
 

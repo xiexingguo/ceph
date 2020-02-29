@@ -2016,6 +2016,9 @@ private:
   ///< approx cost per io, in bytes
   std::atomic<uint64_t> throttle_cost_per_io = {0};
 
+  ///< skip zero write
+  std::atomic<bool> skip_zero_write;
+
   std::atomic<Compressor::CompressionMode> comp_mode =
     {Compressor::COMP_NONE}; ///< compression mode
   CompressorRef compressor;
