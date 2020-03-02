@@ -204,7 +204,7 @@ OPTION(mon_cpu_threads, OPT_INT)
 OPTION(mon_osd_mapping_pgs_per_chunk, OPT_INT)
 OPTION(mon_clean_pg_upmaps_per_chunk, OPT_INT)
 OPTION(mon_osd_max_creating_pgs, OPT_INT)
-OPTION(mon_tick_interval, OPT_INT)
+OPTION(mon_tick_interval, OPT_FLOAT)
 OPTION(mon_session_timeout, OPT_INT)    // must send keepalive or subscribe
 OPTION(mon_subscribe_interval, OPT_DOUBLE)  // for legacy clients only
 OPTION(mon_delta_reset_interval, OPT_DOUBLE)   // seconds of inactivity before we reset the pg delta to 0
@@ -746,11 +746,13 @@ OPTION(osd_remove_thread_suicide_timeout, OPT_INT)
 OPTION(osd_command_thread_timeout, OPT_INT)
 OPTION(osd_command_thread_suicide_timeout, OPT_INT)
 OPTION(osd_heartbeat_addr, OPT_ADDR)
-OPTION(osd_heartbeat_interval, OPT_INT)       // (seconds) how often we ping peers
+OPTION(osd_heartbeat_interval, OPT_FLOAT)       // (seconds) how often we ping peers
+OPTION(osd_heartbeat_base_interval, OPT_FLOAT)
+OPTION(osd_tick_interval, OPT_FLOAT)
 
 // (seconds) how long before we decide a peer has failed
 // This setting is read by the MONs and OSDs and has to be set to a equal value in both settings of the configuration
-OPTION(osd_heartbeat_grace, OPT_INT)
+OPTION(osd_heartbeat_grace, OPT_FLOAT)
 OPTION(osd_heartbeat_min_peers, OPT_INT)     // minimum number of peers
 OPTION(osd_heartbeat_use_min_delay_socket, OPT_BOOL) // prio the heartbeat tcp socket and set dscp as CS6 on it if true
 OPTION(osd_heartbeat_min_size, OPT_INT) // the minimum size of OSD heartbeat messages to send

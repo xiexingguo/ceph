@@ -931,8 +931,8 @@ std::vector<Option> get_global_options() {
     .set_default(1024)
     .set_description(""),
 
-    Option("mon_tick_interval", Option::TYPE_INT, Option::LEVEL_ADVANCED)
-    .set_default(1)
+    Option("mon_tick_interval", Option::TYPE_FLOAT, Option::LEVEL_ADVANCED)
+    .set_default(1.0)
     .set_description(""),
 
     Option("mon_session_timeout", Option::TYPE_INT, Option::LEVEL_ADVANCED)
@@ -2480,17 +2480,25 @@ std::vector<Option> get_global_options() {
     .set_default(15_min)
     .set_description(""),
 
+    Option("osd_tick_interval", Option::TYPE_FLOAT, Option::LEVEL_ADVANCED)
+    .set_default(1.0)
+    .set_description(""),
+
     Option("osd_heartbeat_addr", Option::TYPE_ADDR, Option::LEVEL_ADVANCED)
     .set_default(entity_addr_t())
     .set_description(""),
 
-    Option("osd_heartbeat_interval", Option::TYPE_INT, Option::LEVEL_DEV)
-    .set_default(1)
+    Option("osd_heartbeat_interval", Option::TYPE_FLOAT, Option::LEVEL_ADVANCED)
+    .set_default(1.0)
     .set_min_max(1, 60)
     .set_description("Interval (in seconds) between peer pings"),
 
-    Option("osd_heartbeat_grace", Option::TYPE_INT, Option::LEVEL_ADVANCED)
-    .set_default(4)
+    Option("osd_heartbeat_base_interval", Option::TYPE_FLOAT, Option::LEVEL_ADVANCED)
+    .set_default(0.5)
+    .set_description(""),
+
+    Option("osd_heartbeat_grace", Option::TYPE_FLOAT, Option::LEVEL_ADVANCED)
+    .set_default(4.0)
     .set_description(""),
 
     Option("osd_heartbeat_stale", Option::TYPE_INT, Option::LEVEL_ADVANCED)

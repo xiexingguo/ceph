@@ -2074,7 +2074,7 @@ double OSD::get_tick_interval() const
   // vary +/- 5% to avoid scrub scheduling livelocks
   constexpr auto delta = 0.05;
   std::default_random_engine rng{static_cast<unsigned>(whoami)};
-  return (OSD_TICK_INTERVAL *
+  return (cct->_conf->osd_tick_interval *
           std::uniform_real_distribution<>{1.0 - delta, 1.0 + delta}(rng));
 }
 
@@ -5522,7 +5522,8 @@ void OSD::heartbeat_entry()
     if (cct->_conf->get_val<bool>("debug_disable_randomized_ping")) {
       wait = (float)cct->_conf->osd_heartbeat_interval;
     } else {
-      wait = .5 + ((float)(rand() % 10)/10.0) * (float)cct->_conf->osd_heartbeat_interval;
+      float base_interval = cct->_conf->osd_heartbeat_base_interval;
+      double wait = base_interval + ((float)(rand() % 10)/10.0) * cct->_conf->osd_heartbeat_interval;
     }
     utime_t w;
     w.set_from_double(wait);
@@ -6731,7 +6732,8 @@ void OSD::send_failures()
     if (!failure_pending.count(osd)) {
       entity_inst_t i = osdmap->get_inst(osd);
       int failed_for = (int)(double)(now - failure_queue.begin()->second);
-      monc->send_mon_message(new MOSDFailure(monc->get_fsid(), i, failed_for,
+      // round up failed_for to make failure info with compatability to precision below 1s
+      monc->send_mon_message(new MOSDFailure(monc->get_fsid(), i, failed_for+1,
 					     osdmap->get_epoch()));
       failure_pending[osd] = make_pair(failure_queue.begin()->second, i);
     }
