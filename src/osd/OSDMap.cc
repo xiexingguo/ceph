@@ -383,11 +383,21 @@ void OSDMap::Incremental::encode_client_old(bufferlist& bl) const
   ::encode(new_up_client, bl, 0);
   {
     // legacy is map<int32_t,uint8_t>
-    uint32_t n = new_state.size();
-    ::encode(n, bl);
+    map<int32_t, uint8_t> os;
     for (auto p : new_state) {
+      // new_state may only inculde some new flags(e.g., CEPH_OSD_NOOUT)
+      // that an old client could not understand.
+      // skip those!
+      uint8_t s = p.second;
+      if (p.second != 0 && s == 0)
+        continue;
+      os[p.first] = s;
+    }
+    uint32_t n = os.size();
+    ::encode(n, bl);
+    for (auto p : os) {
       ::encode(p.first, bl);
-      ::encode((uint8_t)p.second, bl);
+      ::encode(p.second, bl);
     }
   }
   ::encode(new_weight, bl);
@@ -426,11 +436,21 @@ void OSDMap::Incremental::encode_classic(bufferlist& bl, uint64_t features) cons
   ::encode(old_pools, bl);
   ::encode(new_up_client, bl, features);
   {
-    uint32_t n = new_state.size();
-    ::encode(n, bl);
+    map<int32_t, uint8_t> os;
     for (auto p : new_state) {
+      // new_state may only inculde some new flags(e.g., CEPH_OSD_NOOUT)
+      // that an old client could not understand.
+      // skip those!
+      uint8_t s = p.second;
+      if (p.second != 0 && s == 0)
+        continue;
+      os[p.first] = s;
+    }
+    uint32_t n = os.size();
+    ::encode(n, bl);
+    for (auto p : os) {
       ::encode(p.first, bl);
-      ::encode((uint8_t)p.second, bl);
+      ::encode(p.second, bl);
     }
   }
   ::encode(new_weight, bl);
@@ -495,11 +515,21 @@ void OSDMap::Incremental::encode(bufferlist& bl, uint64_t features) const
     if (v >= 5) {
       ::encode(new_state, bl);
     } else {
-      uint32_t n = new_state.size();
-      ::encode(n, bl);
+      map<int32_t, uint8_t> os;
       for (auto p : new_state) {
-	::encode(p.first, bl);
-	::encode((uint8_t)p.second, bl);
+        // new_state may only inculde some new flags(e.g., CEPH_OSD_NOOUT)
+        // that an old client could not understand.
+        // skip those!
+        uint8_t s = p.second;
+        if (p.second != 0 && s == 0)
+          continue;
+        os[p.first] = s;
+      }
+      uint32_t n = os.size();
+      ::encode(n, bl);
+      for (auto p : os) {
+        ::encode(p.first, bl);
+        ::encode(p.second, bl);
       }
     }
     ::encode(new_weight, bl);
