@@ -8115,12 +8115,32 @@ boost::statechart::result PG::RecoveryState::Active::react(const AdvMap& advmap)
     pg->dirty_big_info = true;
   }
 
+  bool need_acting_change = false;
   for (size_t i = 0; i < pg->want_acting.size(); i++) {
     int osd = pg->want_acting[i];
     if (!advmap.osdmap->is_up(osd)) {
       pg_shard_t osd_with_shard(osd, shard_id_t(i));
-      assert(pg->is_acting(osd_with_shard) || pg->is_up(osd_with_shard));
+      if (!pg->is_acting(osd_with_shard) && !pg->is_up(osd_with_shard)) {
+        ldout(pg->cct, 10) << "Active stray osd." << osd << " in want_acting is down"
+                           << dendl;
+        need_acting_change = true;
+      }
     }
+  }
+
+  if (need_acting_change) {
+     ldout(pg->cct, 10) << "Active need acting change, call choose_acting again"
+                        << dendl;
+    // possibly because we re-add some strays into the acting set and
+    // some of them then go down in a subsequent map before we could see
+    // the map changing the pg temp.
+    // call choose_acting again to clear them out.
+    // note that we leave restrict_to_up_acting to false in order to
+    // not overkill any chosen stray that is still alive.
+    pg_shard_t auth_log_shard;
+    bool history_les_bound = false;
+    pg->remove_down_peer_info(advmap.osdmap);
+    pg->choose_acting(auth_log_shard, false, &history_les_bound, true);
   }
 
   bool need_publish = false;
