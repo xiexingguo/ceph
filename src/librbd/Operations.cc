@@ -642,18 +642,38 @@ void Operations<I>::execute_qos_update(int64_t rsv, int64_t wgt, int64_t lmt, in
       string srsv = std::to_string(rsv);
       request->add_qos_keyval(QOS_MRSV, srsv);
     }
-    if (wgt >= 0) {
+    if (wgt != m_image_ctx.client_qos_weight) {
       string swgt = std::to_string(wgt);
       request->add_qos_keyval(QOS_MWGT, swgt);
     }
     if (lmt >= 0) {
       string slmt = std::to_string(lmt);
       request->add_qos_keyval(QOS_MLMT, slmt);
+      /* For RBD QoS:
+       * If lmt is 0 and wgt & QOS_FLAG_LMT is true, means the original value
+       * is -1, so set iops to 0 (0 means no limit). If lmt is 0 and wgt &
+       * QOS_FLAG_LMT is false, means the original value is 0, set iops t0 1.
+       */
+      int iops_val = (lmt > 0) ? lmt : ((wgt & QOS_FLAG_LMT) ? 0 : 1);
+      request->add_qos_keyval(QOS_IOPS, std::to_string(iops_val));
+    } else if (wgt & QOS_FLAG_LMT) {
+      // set from 0 -> -1
+      request->add_qos_keyval(QOS_IOPS, std::to_string(0));
+    } else if (m_image_ctx.client_qos_limit == 0) {
+      // set from -1 -> 0
+      request->add_qos_keyval(QOS_IOPS, std::to_string(1));
     }
     if (bdw >= 0) {
       string sbdw = std::to_string(bdw);
       request->add_qos_keyval(QOS_MBDW, sbdw);
+      int bps_val = (bdw > 0) ? bdw : ((wgt & QOS_FLAG_BDW) ? 0 : 1);
+      request->add_qos_keyval(QOS_BPS, std::to_string(bps_val));
+    } else if (wgt & QOS_FLAG_BDW) {
+      request->add_qos_keyval(QOS_BPS, std::to_string(0));
+    } else if (m_image_ctx.client_qos_bandwidth == 0) {
+      request->add_qos_keyval(QOS_BPS, std::to_string(1));
     }
+
     request->send();
   } else {
     ldout(cct, 5) << this << " " << __func__
@@ -698,9 +718,11 @@ void Operations<I>::execute_qos_remove(int flag, Context *on_finish) {
     }
     if (flag & QOS_FLAG_LMT) {
       request->add_qos_key(QOS_MLMT);
+      request->add_qos_key(QOS_IOPS);
     }
     if (flag & QOS_FLAG_BDW) {
       request->add_qos_key(QOS_MBDW);
+      request->add_qos_key(QOS_BPS);
     }
     request->send();
   } else {

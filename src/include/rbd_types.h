@@ -118,6 +118,10 @@
 #define QOS_MWGT  "conf_rbd_client_qos_weight"
 #define QOS_MLMT  "conf_rbd_client_qos_limit"
 #define QOS_MBDW  "conf_rbd_client_qos_bandwidth"
+
+#define QOS_IOPS  "conf_rbd_qos_iops_limit"
+#define QOS_BPS   "conf_rbd_qos_bps_limit"
+
 #define RBD_CACHE "conf_rbd_cache"
 
 struct rbd_info {

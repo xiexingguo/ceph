@@ -1621,9 +1621,7 @@ struct C_InvalidateCache : public Context {
     }
     *bdw = (client_qos_bandwidth != *bdw) ? *bdw : -1;
 
-    *wgt = (client_qos_weight != *wgt) ? *wgt : -1;
-
-    return (*rsv != -1) || (*wgt != -1) ||
+    return (*rsv != -1) || (client_qos_weight != *wgt) ||
            (*lmt != -1) || (*bdw != -1);
   }
 
