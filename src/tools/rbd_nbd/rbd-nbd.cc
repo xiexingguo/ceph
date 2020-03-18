@@ -556,7 +556,8 @@ private:
     for (unsigned i = 0; i < cmdline.size(); i++) {
       const char *arg = &cmdline[i];
       if (i == 0) {
-        if (strcmp(basename(arg) , "rbd-nbd") != 0) {
+        const char *fname = strrchr(arg, '/');
+        if (strcmp(fname ? fname+1 : arg, "rbd-nbd") != 0) {
           return -EINVAL;
         }
       } else {
