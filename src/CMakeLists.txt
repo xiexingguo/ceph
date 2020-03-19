@@ -1026,8 +1026,6 @@ if(WITH_LIBCEPHFS)
   add_executable(mount.ceph ${mount_ceph_srcs}
     $<TARGET_OBJECTS:parse_secret_objs>
     $<TARGET_OBJECTS:common_mountcephfs_objs>)
-  set_target_properties(mount.ceph PROPERTIES
-    INSTALL_RPATH "")
   target_link_libraries(mount.ceph ${KEYUTILS_LIBRARIES} ceph-common)
 
   install(TARGETS ceph-syn DESTINATION bin)
