@@ -1028,7 +1028,7 @@ if(WITH_LIBCEPHFS)
     $<TARGET_OBJECTS:common_mountcephfs_objs>)
   set_target_properties(mount.ceph PROPERTIES
     INSTALL_RPATH "")
-  target_link_libraries(mount.ceph ${KEYUTILS_LIBRARIES})
+  target_link_libraries(mount.ceph ${KEYUTILS_LIBRARIES} ceph-common)
 
   install(TARGETS ceph-syn DESTINATION bin)
   install(TARGETS mount.ceph DESTINATION ${CMAKE_INSTALL_SBINDIR})
