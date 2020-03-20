@@ -69,22 +69,22 @@ void QosSetRequest<I>::send_status_update() {
 
   m_state = STATE_STATUS_UPDATE;
 
-  int iops = -2, bps = -2, reservation = -2, weight = -2;
+  int64_t iops = -2, bps = -2, reservation = -2, weight = -2;
   for (const auto& i : m_data) {
     auto k = i.first;
     std::string v = i.second.to_str();
 
     if (k == QOS_MLMT) {
-      iops = std::stoi(v);
+      iops = std::stol(v);
     }
     if (k == QOS_MBDW) {
-      bps = std::stoi(v);
+      bps = std::stol(v);
     }
     if (k == QOS_MRSV) {
-      reservation = std::stoi(v);
+      reservation = std::stol(v);
     }
     if (k == QOS_MWGT) {
-      weight = std::stoi(v);
+      weight = std::stol(v);
     }
   }
 
