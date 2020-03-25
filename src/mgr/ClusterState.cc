@@ -264,7 +264,7 @@ bool ClusterState::asok_command(std::string admin_command, const cmdmap_t& cmdma
       value = static_cast<int64_t>(g_ceph_context->_conf->get_val<double>("mon_warn_on_slow_ping_time")) * 1000;
       if (value == 0) {
         double ratio = g_conf->get_val<double>("mon_warn_on_slow_ping_ratio");
-	value = g_conf->get_val<int64_t>("osd_heartbeat_grace");
+	value = g_conf->get_val<double>("osd_heartbeat_grace");
 	value *= 1000000 * ratio; // Seconds of grace to microseconds at ratio
       }
     } else {

@@ -5533,7 +5533,7 @@ void OSD::heartbeat_entry()
       wait = (float)cct->_conf->osd_heartbeat_interval;
     } else {
       float base_interval = cct->_conf->osd_heartbeat_base_interval;
-      double wait = base_interval + ((float)(rand() % 10)/10.0) * cct->_conf->osd_heartbeat_interval;
+      wait = base_interval + ((float)(rand() % 10)/10.0) * cct->_conf->osd_heartbeat_interval;
     }
     utime_t w;
     w.set_from_double(wait);
