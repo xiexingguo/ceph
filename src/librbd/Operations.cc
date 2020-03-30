@@ -641,6 +641,8 @@ void Operations<I>::execute_qos_update(int64_t rsv, int64_t wgt, int64_t lmt, in
     if (rsv >= 0) {
       string srsv = std::to_string(rsv);
       request->add_qos_keyval(QOS_MRSV, srsv);
+    } else if (m_image_ctx.client_qos_reservation == 0) {
+      request->add_qos_keyval(QOS_MRSV, std::to_string(0));
     }
     if (wgt != m_image_ctx.client_qos_weight) {
       string swgt = std::to_string(wgt);
@@ -662,6 +664,7 @@ void Operations<I>::execute_qos_update(int64_t rsv, int64_t wgt, int64_t lmt, in
     } else if (m_image_ctx.client_qos_limit == 0) {
       // set from -1 -> 0
       request->add_qos_keyval(QOS_IOPS, std::to_string(1));
+      request->add_qos_keyval(QOS_MLMT, std::to_string(0));
     }
     if (bdw >= 0) {
       string sbdw = std::to_string(bdw);
@@ -672,6 +675,7 @@ void Operations<I>::execute_qos_update(int64_t rsv, int64_t wgt, int64_t lmt, in
       request->add_qos_keyval(QOS_BPS, std::to_string(0));
     } else if (m_image_ctx.client_qos_bandwidth == 0) {
       request->add_qos_keyval(QOS_BPS, std::to_string(1));
+      request->add_qos_keyval(QOS_MBDW, std::to_string(0));
     }
 
     request->send();
