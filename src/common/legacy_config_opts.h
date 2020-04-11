@@ -427,6 +427,7 @@ OPTION(objecter_debug_inject_relock_delay, OPT_BOOL)
 OPTION(objecter_pause_op_on_mon_lost, OPT_BOOL)
 OPTION(objecter_requests_tracker_history_size, OPT_U32)   // max size of histroy to track requests done rate
 OPTION(objecter_dmc_op_cost_from_rados, OPT_BOOL)
+OPTION(objecter_dmc_qos_disabled, OPT_BOOL)
 
 // Max number of deletes at once in a single Filer::purge call
 OPTION(filer_max_purge_ops, OPT_U32)

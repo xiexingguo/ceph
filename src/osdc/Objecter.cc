@@ -3448,17 +3448,19 @@ void Objecter::_send_op(Op *op, MOSDOp *m)
     ldout(cct, 0) << "failed to get_primary_shard for " << op->tid << dendl;
   }
 
-  int pg_shard = pgid.ps() % cct->_conf->osd_op_num_shards;
-  int server_id = dmc::gen_server_id(op->target.osd, pg_shard);
   m->set_tid(op->tid);
-  m->set_dmc_qos_spec(_get_dmc_qos_spec());
-  m->set_dmc_op_tracker(_get_dmc_op_tracker(server_id));
-  m->update_op_tracker_cost(calc_op_budget(op));
-  ldout(cct, 30) << "delta:" << m->get_dmc_op_tracker().delta
-                 << ", rho:" << m->get_dmc_op_tracker().rho
-                 << ", cost:" << m->get_dmc_op_tracker().cost
-                 << ", data_len:" << calc_op_budget(op)
-                 << dendl;
+  if (!cct->_conf->objecter_dmc_qos_disabled) {
+    int pg_shard = pgid.ps() % cct->_conf->osd_op_num_shards;
+    int server_id = dmc::gen_server_id(op->target.osd, pg_shard);
+    m->set_dmc_qos_spec(_get_dmc_qos_spec());
+    m->set_dmc_op_tracker(_get_dmc_op_tracker(server_id));
+    m->update_op_tracker_cost(calc_op_budget(op));
+    ldout(cct, 30) << "delta:" << m->get_dmc_op_tracker().delta
+                   << ", rho:" << m->get_dmc_op_tracker().rho
+                   << ", cost:" << m->get_dmc_op_tracker().cost
+                   << ", data_len:" << calc_op_budget(op)
+                   << dendl;
+  }
   if (op->trace.valid()) {
     m->trace.init("op msg", nullptr, &op->trace);
   }

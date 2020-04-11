@@ -6441,6 +6441,10 @@ static std::vector<Option> get_rbd_options() {
     .set_default(1.0)
     .set_description(""),
 
+    Option("objecter_dmc_qos_disabled", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
+    .set_default(true)
+    .set_description("true if dmclock qos should be disabled"),
+
     Option("rbd_journal_max_concurrent_object_sets", Option::TYPE_INT, Option::LEVEL_ADVANCED)
     .set_default(0)
     .set_description("maximum number of object sets a journal client can be behind before it is automatically unregistered"),
