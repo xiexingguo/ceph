@@ -1408,6 +1408,15 @@ struct C_InvalidateCache : public Context {
     io_work_queue->apply_qos_schedule_tick_min(
       qos_schedule_tick_min);
 
+    // upgrade from old clients
+    if (cct->_conf->get_val<bool>("objecter_dmc_qos_disabled")) {
+      if (client_qos_limit > 0 && qos_iops_limit == 0) {
+        qos_iops_limit = client_qos_limit;
+      }
+      if (client_qos_bandwidth > 0 && qos_bps_limit == 0) {
+        qos_bps_limit = client_qos_bandwidth;
+      }
+    }
     io_work_queue->apply_qos_limit(
       RBD_QOS_IOPS_THROTTLE,
       qos_iops_limit,
