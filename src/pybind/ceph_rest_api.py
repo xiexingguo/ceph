@@ -6,6 +6,7 @@ import logging
 import logging.handlers
 import os
 import rados
+import six
 import textwrap
 import xml.etree.ElementTree
 import xml.sax.saxutils
@@ -164,7 +165,7 @@ def api_setup(app, conf, cluster, clientname, clientid, args):
         maxkey = sorted(app.ceph_sigdict.keys())[-1]
         maxkey = int(maxkey.replace('cmd', ''))
         osdkey = maxkey + 1
-        for k, v in osd_sigdict.iteritems():
+        for k, v in six.iteritems(osd_sigdict):
             newv = v
             newv['flavor'] = 'tell'
             globk = 'cmd' + str(osdkey)
@@ -180,12 +181,12 @@ def api_setup(app, conf, cluster, clientname, clientid, args):
     # 'avail', a comma-separated list of strings of consumers that should
     #    display this command (filtered by parse_json_funcsigs() above)
     app.ceph_urls = {}
-    for cmdnum, cmddict in app.ceph_sigdict.iteritems():
+    for cmdnum, cmddict in six.iteritems(app.ceph_sigdict):
         cmdsig = cmddict['sig']
         flavor = cmddict.get('flavor', 'mon')
         url, params = generate_url_and_params(app, cmdsig, flavor)
         perm = cmddict['perm']
-        for k in METHOD_DICT.iterkeys():
+        for k in METHOD_DICT:
             if k in perm:
                 methods = METHOD_DICT[k]
         urldict = {'paramsig': params,

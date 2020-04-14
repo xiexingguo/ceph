@@ -60,6 +60,7 @@ import hmac
 import json
 import pycurl
 import StringIO
+import six
 import urllib
 import os
 import sys
@@ -98,7 +99,7 @@ def do_rgw_request(uri, params=None, data=None, headers=None):
 
     query = None
     if params != None:
-        query = '&'.join("%s=%s" % (key,val) for (key,val) in params.iteritems())
+        query = '&'.join("%s=%s" % (key, val) for (key, val) in six.iteritems(params))
 
     c = pycurl.Curl()
     b = StringIO.StringIO()
