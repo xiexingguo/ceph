@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 #
 # Copyright (C) 2015 <contact@redhat.com>
 # Copyright (C) 2015 SUSE LINUX GmbH
