@@ -925,10 +925,8 @@ cmake .. \
     -DCMAKE_INSTALL_INCLUDEDIR=%{_includedir} \
     -DWITH_MANPAGE=ON \
     -DWITH_PYTHON3=%{python3_version} \
-%if %{with python2}
     -DWITH_PYTHON2=ON \
-%else
-    -DWITH_PYTHON2=OFF \
+%if %{without python2}
     -DMGR_PYTHON_VERSION=3 \
 %endif
     -DWITH_SYSTEMD=ON \
