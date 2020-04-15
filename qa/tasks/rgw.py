@@ -96,13 +96,13 @@ def start_rgw(ctx, config, clients):
         host, port = ctx.rgw.role_endpoints[client]
         endpoint = 'http://{host}:{port}/'.format(host=host, port=port)
         log.info('Polling {client} until it starts accepting connections on {endpoint}'.format(client=client, endpoint=endpoint))
-        (remote,) = ctx.cluster.only(client).remotes.iterkeys()
+        (remote,) = ctx.cluster.only(client).remotes.keys()
         wait_for_radosgw(endpoint, remote)
 
     try:
         yield
     finally:
-        for client in config.iterkeys():
+        for client in config.keys():
             cluster_name, daemon_type, client_id = teuthology.split_role(client)
             client_with_id = daemon_type + '.' + client_id
             client_with_cluster = cluster_name + '.' + client_with_id
