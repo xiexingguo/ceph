@@ -28,7 +28,7 @@ EXTRA_NOSETEST_PKGS = [
 
 def find_client0(cluster):
     ''' Find remote that has client.0 role, or None '''
-    for rem, roles in cluster.remotes.iteritems():
+    for rem, roles in cluster.remotes.items():
         if 'client.0' in roles:
             return rem
     return None
@@ -138,7 +138,7 @@ def write_info_yaml(cluster, client):
         info = {
             'cluster': {
                 rem.name: {'roles': roles}
-                for rem, roles in cluster.remotes.iteritems()
+                for rem, roles in cluster.remotes.items()
             }
         }
         misc.create_file(client, 'calamari/info.yaml',
