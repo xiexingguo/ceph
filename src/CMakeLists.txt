@@ -246,8 +246,8 @@ endif()
 # Python stuff
 option(WITH_PYTHON2 "build python2 bindings" ON)
 if(WITH_PYTHON2)
-  find_package(PythonInterp 2 REQUIRED)
-  find_package(PythonLibs ${PYTHON_VERSION_STRING} EXACT REQUIRED)
+  find_package(Python2Interp 2 REQUIRED)
+  find_package(Python2Libs ${PYTHON2_VERSION_STRING} EXACT REQUIRED)
 endif()
 
 option(WITH_PYTHON3 "build python3 bindings" ON)
