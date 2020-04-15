@@ -90,7 +90,7 @@ class RecoveryBencher:
                 """
                 Local wrapper to print value.
                 """
-                print x
+                print(x)
             self.log = tmp
 
         log.info("spawning thread")

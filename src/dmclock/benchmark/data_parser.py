@@ -168,7 +168,7 @@ def make_data(filename):
   # write the aggregated point in space separated file  
   dps = parse_data_points(filename);
   if not len(dps) : return
-  print "total points: ", len(dps)
+  print("total points: ", len(dps))
   # open file
   with open('%s.dat'%(filename), 'w+') as f:
     # write header
@@ -179,7 +179,7 @@ def make_data(filename):
 
 
 def main(output_file):
-  print output_file
+  print(output_file)
   make_data(output_file);
 
 import sys

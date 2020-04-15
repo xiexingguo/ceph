@@ -104,7 +104,7 @@ if os.path.exists("./CMakeCache.txt") and os.path.exists("./bin"):
                 python_paths.append(g_exp)
 
     ld_path = os.path.join(os.getcwd(), "lib/")
-    print "Using guessed paths {0} {1}".format(ld_path, python_paths)
+    print("Using guessed paths {0} {1}".format(ld_path, python_paths))
     respawn_in_path(ld_path, python_paths)
 
 

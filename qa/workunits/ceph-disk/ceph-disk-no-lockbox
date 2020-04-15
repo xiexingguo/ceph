@@ -21,6 +21,9 @@
 # PRIOR TO THE INTRODUCTION OF THE LOCKBOX VOLUME TO STORE KEY FETCHING
 # STRATEGIES
 #
+
+from __future__ import print_function
+
 import argparse
 import errno
 import fcntl
@@ -945,7 +948,7 @@ def get_ceph_user():
             pwd.getpwnam(CEPH_PREF_USER)
             return CEPH_PREF_USER
         except KeyError:
-            print "No such user: " + CEPH_PREF_USER
+            print("No such user: " + CEPH_PREF_USER)
             sys.exit(2)
     else:
         try:
@@ -963,7 +966,7 @@ def get_ceph_group():
             grp.getgrnam(CEPH_PREF_GROUP)
             return CEPH_PREF_GROUP
         except KeyError:
-            print "No such group: " + CEPH_PREF_GROUP
+            print("No such group: " + CEPH_PREF_GROUP)
             sys.exit(2)
     else:
         try:
@@ -3461,10 +3464,10 @@ def main_activate_all(args):
                 )
 
             except Exception as e:
-                print >> sys.stderr, '{prog}: {msg}'.format(
+                print('{prog}: {msg}'.format(
                     prog=args.prog,
                     msg=e,
-                )
+                ), file=sys.stderr)
                 err = True
 
             finally:
@@ -3814,11 +3817,11 @@ def main_list(args):
     else:
         selected_devices = devices
     if args.format == 'json':
-        print json.dumps(selected_devices)
+        print(json.dumps(selected_devices))
     else:
         output = list_format_plain(selected_devices)
         if output:
-            print output
+            print(output)
 
 
 ###########################
