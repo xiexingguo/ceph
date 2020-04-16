@@ -57,7 +57,7 @@ def run_tests(ctx, config):
 #                '-w',
 #                '{tdir}/s3-tests'.format(tdir=testdir),
 #                '-v',
-#		's3tests.functional.test_s3:test_bucket_list_return_data',
+#                's3tests.functional.test_s3:test_bucket_list_return_data',
 #                ]
 #        if client_config is not None and 'extra_args' in client_config:
 #            args.extend(client_config['extra_args'])

@@ -18,30 +18,30 @@ def task(ctx, config):
 
     The config should be as follows::
 
-		  omapbench:
-		      clients: [client list]
-		      threads: <threads at once>
-		      objects: <number of objects to write>
-		      entries: <number of entries per object map>
-		      keysize: <number of characters per object map key>
-		      valsize: <number of characters per object map val>
-		      increment: <interval to show in histogram (in ms)>
-		      omaptype: <how the omaps should be generated>
+          omapbench:
+              clients: [client list]
+              threads: <threads at once>
+              objects: <number of objects to write>
+              entries: <number of entries per object map>
+              keysize: <number of characters per object map key>
+              valsize: <number of characters per object map val>
+              increment: <interval to show in histogram (in ms)>
+              omaptype: <how the omaps should be generated>
 
     example::
 
-		  tasks:
-		  - ceph:
-		  - omapbench:
-		      clients: [client.0]
-		      threads: 30
-		      objects: 1000
-		      entries: 10
-		      keysize: 10
-		      valsize: 100
-		      increment: 100
-		      omaptype: uniform
-		  - interactive:
+          tasks:
+          - ceph:
+          - omapbench:
+              clients: [client.0]
+              threads: 30
+              objects: 1000
+              entries: 10
+              keysize: 10
+              valsize: 100
+              increment: 100
+              omaptype: uniform
+          - interactive:
     """
     log.info('Beginning omapbench...')
     assert isinstance(config, dict), \

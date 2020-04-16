@@ -113,7 +113,7 @@ def task(ctx, config):
                           'ceph-coverage',
                           '{tdir}/archive/coverage',
                           'rados',
-			  '--no-log-to-stderr',
+                          '--no-log-to-stderr',
                           '--name', role]
                           + size + objectsize +
                           ['-p' , pool,

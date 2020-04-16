@@ -34,9 +34,9 @@ def task(ctx, config):
           fast_read: enable ec_pool's fast_read
           min_size: set the min_size of created pool
           pool_snaps: use pool snapshots instead of selfmanaged snapshots
-	  write_fadvise_dontneed: write behavior like with LIBRADOS_OP_FLAG_FADVISE_DONTNEED.
-	                          This mean data don't access in the near future.
-				  Let osd backend don't keep data in cache.
+          write_fadvise_dontneed: write behavior like with LIBRADOS_OP_FLAG_FADVISE_DONTNEED.
+                                  This mean data don't access in the near future.
+                                  Let osd backend don't keep data in cache.
 
     For example::
 
@@ -66,7 +66,7 @@ def task(ctx, config):
               m: 1
               crush-failure-domain: osd
             pool_snaps: true
-	    write_fadvise_dontneed: true
+            write_fadvise_dontneed: true
             runs: 10
         - interactive:
 

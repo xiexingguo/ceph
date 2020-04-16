@@ -103,7 +103,7 @@ def parse_data_points(filename):
         dp.nserver = params[0];
         dp.nclient = params[-1];
          
-      elif line.startswith("average"):	# take last 2 averages
+      elif line.startswith("average"):  # take last 2 averages
         r = [float(s) for s in line.split(' ') if isFloat(s)]
         state +=1;
         #print r, dp #if isFloat(s)
@@ -175,7 +175,7 @@ def make_data(filename):
     f.write(create_header(len(dps[0])));
     # write data-line
     for aggr_dp in dps:
-    	f.write(create_data_line(aggr_dp));
+        f.write(create_data_line(aggr_dp));
 
 
 def main(output_file):

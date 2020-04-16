@@ -3770,7 +3770,7 @@ def main_activate(args):
                             args.path)
 
             # clear the stale mount path before activate 
-	    if not args.dmcrypt:
+            if not args.dmcrypt:
                 clean_stale_mount(args.path)
 
             (cluster, osd_id) = mount_activate(

@@ -783,7 +783,7 @@ class Module(MgrModule):
         }
         self.log.debug('stats_by_root %s' % pe.stats_by_root)
 
-	# the scores are already normalized
+        # the scores are already normalized
         pe.score_by_root = {
             r: {
                 'pgs': pe.stats_by_root[r]['pgs']['score'],

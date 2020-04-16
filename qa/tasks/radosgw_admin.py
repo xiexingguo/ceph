@@ -7,7 +7,7 @@ Rgw admin testing against a running instance
 #   grep '^ *# TESTCASE' | sed 's/^ *# TESTCASE //'
 #
 # to run this standalone:
-#	python qa/tasks/radosgw_admin.py [USER] HOSTNAME
+#       python qa/tasks/radosgw_admin.py [USER] HOSTNAME
 #
 
 import copy
@@ -126,7 +126,7 @@ class usage_acc:
                 e2 = usage_acc_findentry2(results['entries'], e['user'], False)
             except Exception as ex:
                 r.append("malformed entry looking for user "
-		    + e['user'] + " " + str(ex))
+                         +e['user'] + " " + str(ex))
                 break
             if e2 == None:
                 r.append("missing entry for user " + e['user'])
@@ -141,30 +141,30 @@ class usage_acc:
                             c2 = b2['categories']
                 except Exception as ex:
                     r.append("malformed entry looking for bucket "
-			+ b['bucket'] + " in user " + e['user'] + " " + str(ex))
+                             +b['bucket'] + " in user " + e['user'] + " " + str(ex))
                     break
                 if b2 == None:
                     r.append("can't find bucket " + b['bucket']
-			+ " in user " + e['user'])
+                             +" in user " + e['user'])
                     continue
                 for x in c:
                     try:
                         x2 = self.c2x(c2, x['category'], False)
                     except Exception as ex:
                         r.append("malformed entry looking for "
-			    + x['category'] + " in bucket " + b['bucket']
-			    + " user " + e['user'] + " " + str(ex))
+                                 +x['category'] + " in bucket " + b['bucket']
+                                 +" user " + e['user'] + " " + str(ex))
                         break
                     usage_acc_validate_fields(r, x, x2, "entry: category "
-			+ x['category'] + " bucket " + b['bucket']
-			+ " in user " + e['user'])
+                                              +x['category'] + " bucket " + b['bucket']
+                                              +" in user " + e['user'])
         for s in self.results['summary']:
             c = s['categories']
             try:
                 s2 = usage_acc_findsum2(results['summary'], s['user'], False)
             except Exception as ex:
                 r.append("malformed summary looking for user " + e['user']
-		    + " " + str(ex))
+                         +" " + str(ex))
                 break
             if s2 == None:
                 r.append("missing summary for user " + e['user'] + " " + str(ex))
@@ -173,17 +173,17 @@ class usage_acc:
                 c2 = s2['categories']
             except Exception as ex:
                 r.append("malformed summary missing categories for user "
-		    + e['user'] + " " + str(ex))
+                         +e['user'] + " " + str(ex))
                 break
             for x in c:
                 try:
                     x2 = self.c2x(c2, x['category'], False)
                 except Exception as ex:
                     r.append("malformed summary looking for "
-			+ x['category'] + " user " + e['user'] + " " + str(ex))
+                             +x['category'] + " user " + e['user'] + " " + str(ex))
                     break
                 usage_acc_validate_fields(r, x, x2, "summary: category "
-		    + x['category'] + " in user " + e['user'])
+                                          +x['category'] + " in user " + e['user'])
             x = s['total']
             try:
                 x2 = s2['total']
@@ -947,8 +947,8 @@ def main():
     ctx.rgw.role_endpoints = endpoints
     ctx.rgw.realm = None
     ctx.rgw.regions = {'region0': { 'api name': 'api1',
-	    'is master': True, 'master zone': 'r0z0',
-	    'zones': ['r0z0', 'r0z1'] }}
+                                   'is master': True, 'master zone': 'r0z0',
+                                   'zones': ['r0z0', 'r0z1'] }}
     ctx.rgw.config = {'ceph.client.rgw.%s' % host: {'system user': {'name': '%s-system-user' % host}}}
     task(config, None)
     exit()

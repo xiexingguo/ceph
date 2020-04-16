@@ -645,11 +645,11 @@ class Module(MgrModule):
             def index(self):
                 return '''<!DOCTYPE html>
 <html>
-	<head><title>Ceph Exporter</title></head>
-	<body>
-		<h1>Ceph Exporter</h1>
-		<p><a href='/metrics'>Metrics</a></p>
-	</body>
+    <head><title>Ceph Exporter</title></head>
+    <body>
+        <h1>Ceph Exporter</h1>
+        p><a href='/metrics'>Metrics</a></p>
+    </body>
 </html>'''
 
             @cherrypy.expose
@@ -739,11 +739,11 @@ class StandbyModule(MgrStandbyModule):
                 active_uri = module.get_active_uri()
                 return '''<!DOCTYPE html>
 <html>
-	<head><title>Ceph Exporter</title></head>
-	<body>
-		<h1>Ceph Exporter</h1>
+    <head><title>Ceph Exporter</title></head>
+    <body>
+        <h1>Ceph Exporter</h1>
         <p><a href='{}metrics'>Metrics</a></p>
-	</body>
+    </body>
 </html>'''.format(active_uri)
 
             @cherrypy.expose

@@ -364,7 +364,7 @@ def task(ctx, config):
                 'fixtures' : {},
                 's3 main'  : {},
                 's3 alt'   : {},
-		's3 tenant': {},
+                's3 tenant': {},
                 }
             )
 
