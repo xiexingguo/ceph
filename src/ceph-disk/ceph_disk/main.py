@@ -3251,8 +3251,18 @@ def systemd_disable(
     osd_id,
 ):
     # ensure there is no duplicate ceph-osd@.service
-    for style in ([], ['--runtime']):
+    for style in ([],):
         command_check_call(
+            [
+                'systemctl',
+                'disable',
+                'ceph-osd@{osd_id}'.format(osd_id=osd_id),
+            ] + style,
+        )
+
+    # systemd 239 removed --runtime for disable/unmask/preset/preset-all
+    for style in (['--runtime'],):
+        command(
             [
                 'systemctl',
                 'disable',
