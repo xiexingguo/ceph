@@ -153,7 +153,7 @@ class PoolDatum(RemoteViewCache):
         try:
             ioctx = self._module.rados.open_ioctx(self.pool_name)
         except:
-            self.log.exception("Failed to open pool " + pool_name)
+            self.log.exception("Failed to open pool " + self.pool_name)
             return None
 
         mirror_state = {

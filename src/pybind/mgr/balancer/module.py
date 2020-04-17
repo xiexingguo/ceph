@@ -547,7 +547,7 @@ class Module(MgrModule):
         self.log.info('Starting')
         while self.run:
             active = self.get_config('active', '')
-            if active is not '':
+            if active != '':
                 self.active = active == '1'
             sleep_interval = float(self.get_config('sleep_interval',
                                                    default_sleep_interval))

@@ -366,15 +366,15 @@ class TestCryptHelpers(Base):
 
         m_get_conf.return_value = 'luks'
         args = argparse.Namespace(dmcrypt=True, cluster='ceph')
-        assert main.CryptHelpers.get_dmcrypt_type(args) is 'luks'
+        assert main.CryptHelpers.get_dmcrypt_type(args) == 'luks'
 
         m_get_conf.return_value = None
         args = argparse.Namespace(dmcrypt=True, cluster='ceph')
-        assert main.CryptHelpers.get_dmcrypt_type(args) is 'luks'
+        assert main.CryptHelpers.get_dmcrypt_type(args) == 'luks'
 
         m_get_conf.return_value = 'plain'
         args = argparse.Namespace(dmcrypt=True, cluster='ceph')
-        assert main.CryptHelpers.get_dmcrypt_type(args) is 'plain'
+        assert main.CryptHelpers.get_dmcrypt_type(args) == 'plain'
 
         invalid = 'INVALID'
         m_get_conf.return_value = invalid

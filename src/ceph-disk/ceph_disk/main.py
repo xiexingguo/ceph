@@ -3886,9 +3886,9 @@ def _check_osd_status(cluster, osd_id):
     for item in out_json[u'osds']:
         if item.get(u'osd') == int(osd_id):
             found = True
-            if item.get(u'in') is 1:
+            if item.get(u'in') == 1:
                 status_code += 2
-            if item.get(u'up') is 1:
+            if item.get(u'up') == 1:
                 status_code += 1
     if not found:
         raise Error('Could not osd.%s in osd tree!' % osd_id)

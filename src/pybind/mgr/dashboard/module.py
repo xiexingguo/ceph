@@ -9,7 +9,6 @@ from __future__ import absolute_import
 # gatekeeper to all accesses to data from the C++ side (e.g. the REST API
 # request handlers need to see it)
 from collections import defaultdict
-from functools import cmp_to_key
 import collections
 
 _global_instance = {'plugin': None}

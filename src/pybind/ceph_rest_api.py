@@ -13,8 +13,8 @@ import xml.sax.saxutils
 
 import flask
 from ceph_argparse import \
-    ArgumentError, CephPgid, CephOsdName, CephChoices, CephPrefix, \
-    concise_sig, descsort, parse_funcsig, parse_json_funcsigs, \
+    ArgumentError, CephPgid, CephOsdName, CephPrefix, \
+    concise_sig, descsort_key, parse_funcsig, parse_json_funcsigs, \
     validate, json_command
 
 #
@@ -284,7 +284,7 @@ def show_human_help(prefix):
 
     permmap = {'r': 'GET', 'rw': 'PUT', 'rx': 'GET', 'rwx': 'PUT'}
     line = ''
-    for cmdsig in sorted(app.ceph_sigdict.itervalues(), cmp=descsort):
+    for cmdsig in sorted(app.ceph_sigdict.itervalues(), key=descsort_key):
         concise = concise_sig(cmdsig['sig'])
         flavor = cmdsig.get('flavor', 'mon')
         if flavor == 'tell':
