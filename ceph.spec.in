@@ -582,7 +582,6 @@ Summary:	Python 2 libraries for the RADOS object store
 %if 0%{?suse_version}
 Group:		Development/Languages/Python
 %endif
-Requires:   python%{_python2_buildid}
 Requires:	librados2 = %{_epoch_prefix}%{version}-%{release}
 %{?python_provide:%python_provide python-rados}
 Obsoletes:	python-ceph < %{_epoch_prefix}%{version}-%{release}
