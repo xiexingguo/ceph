@@ -61,6 +61,7 @@
 %if %{with selinux} || %{with libceph_selinux}
 # get selinux policy version
 %{!?_selinux_policy_version: %global _selinux_policy_version 0.0.0}
+%global _selinux_policy_version 3.13.1-60.el7
 %endif
 
 %{!?_udevrulesdir: %global _udevrulesdir /lib/udev/rules.d}
