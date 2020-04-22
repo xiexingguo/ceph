@@ -28,10 +28,10 @@
 %bcond_with selinux
 %else
 %bcond_without selinux
+%endif
 %bcond_without cephfs_java
 %bcond_with lowmem_builder
 %bcond_without lttng
-%endif
 %endif
 %if 0%{?suse_version}
 %bcond_with selinux
@@ -61,7 +61,12 @@
 %if %{with selinux} || %{with libceph_selinux}
 # get selinux policy version
 %{!?_selinux_policy_version: %global _selinux_policy_version 0.0.0}
+%if 0%{?rhel} == 7
 %global _selinux_policy_version 3.13.1-60.el7
+%endif
+%if 0%{?rhel} == 8
+%global _selinux_policy_version 3.14.3-20.el8
+%endif
 %endif
 
 %{!?_udevrulesdir: %global _udevrulesdir /lib/udev/rules.d}
