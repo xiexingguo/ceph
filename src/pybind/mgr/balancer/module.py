@@ -538,9 +538,6 @@ class Module(MgrModule):
         r = self.optimize(plan, 5, pg_status)
         if r[0] >= 0:
             r = self.execute(plan)
-        if r[0] == -errno.EPERM and plan.mode == 'upmap':
-            # may or may not work, we don't really care
-            self.enable_required_upmap_features()
         self.plan_rm(plan_name)
 
     def serve(self):
@@ -1261,6 +1258,9 @@ class Module(MgrModule):
         self.log.debug('commands %s' % commands)
         for result in commands:
             r, outb, outs = result.wait()
+            if r == -errno.EPERM and plan.mode == 'upmap':
+                # may or may not work, we don't really care
+                self.enable_required_upmap_features()
             if r != 0:
                 self.log.error('execute error: r = %d, detail = %s' % (r, outs))
                 return r, outs
